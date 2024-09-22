@@ -1,6 +1,5 @@
 ---
 title: 'Meta-analysis reveals that species are not most abundant or demographically performant at their range’s centre despite higher genetic diversity'
-
 author: "Jacob Moutouama and Orou Gaoue"
 date: "`r Sys.Date()`"
 output: 
@@ -138,12 +137,12 @@ library(rstan)
 rstan_options(auto_write = TRUE)
 ```
 
-Store the Figures and the table 
-```{r}
-dir.create('/Users/jm200/Library/CloudStorage/Dropbox/Manuscript/Figures',showWarnings = F)
-dir.create('/Users/jm200/Library/CloudStorage/Dropbox/Manuscript/Tables',showWarnings = F)
-```
+Store the Figures and the table
 
+```{r}
+dir.create('/Users/jm200/Library/CloudStorage/Dropbox/Miller Lab/github/Meta-analysis-Center-periphery-hypothesis/Figures',showWarnings = F)
+dir.create('/Users/jm200/Library/CloudStorage/Dropbox/Miller Lab/github/Meta-analysis-Center-periphery-hypothesis/Tables',showWarnings = F)
+```
 Function to export the model summary 
 ```{r}
 Ftable <- function(model, reorder = F, order, percent = F){
@@ -180,6 +179,7 @@ Ftable <- function(model, reorder = F, order, percent = F){
 ```
 
 Theme to use for all the graphs
+
 ```{r}
 theme <-  theme(panel.background = element_blank(),
                 panel.border = element_rect(fill = NA), 
@@ -199,19 +199,20 @@ theme <-  theme(panel.background = element_blank(),
                 plot.margin = margin(t = 0.5, r = 0.5, b = 0.5, l = 0.5, unit = "cm"))
 ```
 
+
 # What is the magnitude of the cumulative effect size across studies for CPH support, and is it significantly different from zero?  
 
 ## Population growth rate and CPH
 
 ```{r}
-Lambdacp <- read.csv("C:/Users/jm200/Documents/Data/Lambda.csv", header = T)
+Lambdacp <- read.csv("/Users/jm200/Library/CloudStorage/Dropbox/Miller Lab/github/Meta-analysis-Center-periphery-hypothesis/Data/Lambda.csv", header = T)
 ```
 
 ### Standardized Mean Difference: Hedges’s d (SDM)
 
 ```{r}
 datlambdacp <- escalc("SMDH", m1i = mcenter, m2i = mperiphery, sd1i = sdcenter, sd2i = sdperiphery, n1i = ncenter, n2i = nperiphery, slab = Author, data = Lambdacp)
-Lambdar <- read.csv("C:/Users/jm200/Documents/Data/Lambdar.csv", header = T)
+Lambdar <- read.csv("/Users/jm200/Library/CloudStorage/Dropbox/Miller Lab/github/Meta-analysis-Center-periphery-hypothesis/Data/Lambdar.csv", header = T)
 datlambda<-rbind(datlambdacp,Lambdar)
 datlambda$se<-sqrt(datlambda$vi)
 ```
@@ -219,39 +220,38 @@ datlambda$se<-sqrt(datlambda$vi)
 ### Phylogeny tree 
 
 ```{r,eval=FALSE}
-sp.lambda <- datlambda[, 4]
+sp.lambda <- datlambda[,5]
 spnames <- as.character(sp.lambda)
 species1 <- unique(spnames)
 # length(species1)
-# species2 <- gsub("\n", "", species1)
-species2 <- gsub("\xca", " ", species1) 
+species2 <- gsub("\n", "", species1)
+# species2 <- gsub("\xca", " ", species1)
 temp <- gnr_resolve(species2, best_match_only = TRUE, canonical = TRUE)
 dat <- merge(data.frame(species2), temp[,c("user_supplied_name", "matched_name2")], 
                by.x = "species2", by.y = "user_supplied_name", all.x = TRUE)
 # Retrieve classifications)
 resolved_names <- classification(dat[, 2], db = "ncbi")
 resolved_names <- unique(resolved_names)
-lapply(resolved_names, head)
-class(resolved_names)
 # Building a phylogenetic tree
 lambdatree <- class2tree(resolved_names)
 (lambdaphy <- lambdatree$phylo)
+# plot(lambdaphy)
 ```
 
 ### Computes the expected variances and covariances of branch length 
 
 ```{r}
-datlambda$Species<-gsub("\xca", " ", datlambda$Species) 
+# datlambda$Species<-gsub("\xca", " ", datlambda$Species) 
 lambdaphyclean<-drop.tip(lambdaphy, lambdaphy$tip.label[-na.omit(match(datlambda$Species, lambdaphy$tip.label))])
-A<-ape::vcv.phylo(lambdaphy)
+A<-ape::vcv.phylo(lambdaphyclean)
 ```
 
 ### Grand Mean effect size and significance 
 
 ```{r}
 Lambdamodel <- brm(
-  yi | se(se, sigma = TRUE) ~ 1  +  (1 | Author) + (1|gr(Species, cov = A)),
-  data = datlambda[-c(11,18),],
+  yi | se(se) ~ 1 + (1 | ID) +  (1 | Author) + (1|gr(Species, cov = A)),
+  data = datlambda,
   family = gaussian(),
   control = list(adapt_delta = 0.9999, max_treedepth = 15),
                    iter = 3000, cores = 4,
@@ -327,8 +327,8 @@ I_square_lambda
 ## Genetics and CPH
 
 ```{r}
-gencp <- read.csv("C:/Users/jm200/Documents/Data/genetic.csv", header = T)
-genr <- read.csv("C:/Users/jm200/Documents/Data/geneticr.csv", header = T)
+gencp <- read.csv("/Users/jm200/Library/CloudStorage/Dropbox/Miller Lab/github/Meta-analysis-Center-periphery-hypothesis/Data/genetic.csv", header = T)
+genr <- read.csv("/Users/jm200/Library/CloudStorage/Dropbox/Miller Lab/github/Meta-analysis-Center-periphery-hypothesis/Data/geneticr.csv", header = T)
 
 ```
 
@@ -339,14 +339,19 @@ datgen <- escalc("SMDH", m1i = mcenter, m2i = mperiphery, sd1i = sdcenter, sd2i 
 datgencp<-rbind(datgen,genr)
 datgencp <- datgen[!apply(datgen[,c("yi", "vi")], 1, anyNA),] 
 datgencp$se<-sqrt(datgencp$vi)
+datgencp$ID<-as.factor(datgencp$ID)
+str(datgencp)
 ```
 
 ### Grand Mean effect size and significance 
 
 ```{r, warning=FALSE}
+priors <- c(prior(normal(0,1), class = Intercept),
+            prior(cauchy(0,0.5), class = sd))
 genamodel <- brm(
-  yi | se(se, sigma = TRUE) ~ 1 + (1 | Author) + (1|Species),
+  yi | se(se) ~ 1 + (1 | ID) + (1 | Author) + (1|Species),
   control = list(adapt_delta = 0.9999, max_treedepth = 20),
+  prior = priors,
                    iter = 5000, cores = 4,
   data = datgencp
 )

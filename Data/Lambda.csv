@@ -1,0 +1,18 @@
+ID,Author,Year,Kingdom,Species,mcenter,sdcenter,ncenter,mperiphery,sdperiphery,nperiphery,Method
+1,Nantel & Gagnon,1999,Plant,Helianthus divaricatus,1.078,0.064,2,0.937,0.226,2,GD
+2,Stokes et al.,2004,Plant,Ulex gallii,1.347,0.069,10,1.285,0.065,10,GD
+2,Stokes et al.,2004,Plant,Ulex minor,1.242,0.069,10,1.305,0.063,10,GD
+3,Kluth & Bruelheide,2005,Plant,Hornungia petraea,1.22,0.82,10,1.325,0.53,10,GD
+4,Angert,2006,Plant,Erythranthe cardinalis,0.601,0.07,8,1.048,0.165,8,GD
+4,Angert,2006,Plant,Mimulus lewisii,1.059,0.124,8,0.823,0.124,8,GD
+5,Garcia et al.,2010,Plant,Cypripedium calcicola,1.04,0.074,9,1.028,0.024,4,GD
+6,Villellas et al.,2013,Plant,Plantago coronopus,0.783,0.213,5,0.775,0.197,6,GD
+7,Araujo et al.,2014,Plant,Ascophyllum nodosum,0.871,0.252,2,0.974,0.071,2,GD
+7,Araujo et al.,2014,Plant,Fucus serratus,1.058,0.129,2,0.774,0.245,2,GD
+8,Aikens and Roach,2014,Plant,Prenanthes roanensis,1.202,1.202,2,0.962,0.198,4,GD
+9,Baer and Maron,2018,Plant,Astragalus utahensis,1.438,0.332,3,0.98,0.052,4,GD
+10,Souza et al.,2018,Plant,Euterpe edulis,1.062,0.028,3,1.01,0.028,3,GD
+11,Bayly and Angert,2019,Plant,Erythranthe cardinalis,0.788,0.44,4,1.244,0.915,4,GD
+12,Reed ,2020,Plant,Ranunculusa ustro-oreganus,0.113,0.783,20,0.068,0.801,40,GD
+12,Reed ,2020,Plant,Sidalcea malviflora,1.554,4.784,20,1.998,1.75,40,GD
+12,Reed ,2020,Plant,Microseris laciniata,1.249,2.46,20,1.148,3.894,40,GD
