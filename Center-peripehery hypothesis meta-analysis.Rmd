@@ -215,6 +215,7 @@ datlambdacp <- escalc("SMDH", m1i = mcenter, m2i = mperiphery, sd1i = sdcenter, 
 Lambdar <- read.csv("/Users/jm200/Library/CloudStorage/Dropbox/Miller Lab/github/Meta-analysis-Center-periphery-hypothesis/Data/Lambdar.csv", header = T)
 datlambda<-rbind(datlambdacp,Lambdar)
 datlambda$se<-sqrt(datlambda$vi)
+datlambda$ID<-as.factor(datlambda$ID)
 ```
 
 ### Phylogeny tree 
@@ -249,15 +250,25 @@ A<-ape::vcv.phylo(lambdaphyclean)
 ### Grand Mean effect size and significance 
 
 ```{r}
+priors <- c(prior(normal(0,1), class = Intercept),
+            prior(cauchy(0,0.5), class = sd))
 Lambdamodel <- brm(
-  yi | se(se) ~ 1 + (1 | ID) +  (1 | Author) + (1|gr(Species, cov = A)),
+  yi | se(se,sigma=TRUE) ~ 1 + (1 | ID) +  (1 | Author) +  (1 | Species),
   data = datlambda,
   family = gaussian(),
-  control = list(adapt_delta = 0.9999, max_treedepth = 15),
-                   iter = 3000, cores = 4,
-  data2 = list(A = A)
+   control = list(adapt_delta = 0.9999, max_treedepth = 15),
+  prior = priors,
+                   iter = 3000, cores = 4
 )
+
 ```
+
+```{r}
+mcmc_plot(Lambdamodel,prob=0.95,variable ="b_Intercept")
+summary(Lambdamodel)
+plot(Lambdamodel)
+```
+
 
 ### Predictive check for population growth rate
 
@@ -349,7 +360,7 @@ str(datgencp)
 priors <- c(prior(normal(0,1), class = Intercept),
             prior(cauchy(0,0.5), class = sd))
 genamodel <- brm(
-  yi | se(se) ~ 1 + (1 | ID) + (1 | Author) + (1|Species),
+  yi | se(se,sigma=TRUE) ~ 1 + (1 | ID) + (1|Species),
   control = list(adapt_delta = 0.9999, max_treedepth = 20),
   prior = priors,
                    iter = 5000, cores = 4,
@@ -394,14 +405,14 @@ colnames(var_samp_gen) <- colnames(var_samp_gen) %>%
 
 ```{r}
 # I^2 and lambda
-I_square_gen <- hypothesis(var_samp_gen, c('Author/total_var= 0',
+I_square_gen <- hypothesis(var_samp_gen, c(
                                    'Species/total_var = 0',
-                                   'sigma/total_var = 0',
-                                   'Species/no_sample = 0'))$hypothesis %>% 
+                                   'ID/total_var = 0',
+                                   'sigma/total_var = 0'))$hypothesis %>% 
   as_tibble() %>% 
   select(-Evid.Ratio, -Post.Prob, -Star)
 
-I_square_gen[,1] <- c('Author', 'Species', 'sigma','Phylogenetic signal')
+I_square_gen[,1] <- c('Species', 'ID','sigma')
 colnames(I_square_gen) <- c('', 'Estimate', 'SE', 'L95%CL', 'U95%CL')
 I_square_gen <- I_square_gen %>% 
   kable(digits = 4, escape = F, table.attr = "style = \"color: black;\"") %>% 
@@ -593,7 +604,7 @@ Fig1a<-out_Lambda %>%
   xlim(-2,2)+
   # Zero!
   geom_vline(xintercept = 0, linewidth = .25, lty = 2) +
-  stat_halfeye() +
+  stat_halfeye(.width = c(.95)) +
   scale_fill_manual(values = c("#FFC34D", "grey80"))+
   # Add text labels
   geom_text(
@@ -618,7 +629,7 @@ Fig1b<-out_f_gen %>%
   xlim(-2,2)+
   # Zero!
   geom_vline(xintercept = 0, linewidth = .25, lty = 2) +
-  stat_halfeye() +
+  stat_halfeye(.width = c(.95)) +
   scale_fill_manual(values = c("#FFC34D", "#999999"))+
   # Add text labels
   geom_text(
