@@ -1,0 +1,111 @@
+#NEXUS
+[R-package APE, Mon Sep 22 14:33:41 2025]
+
+BEGIN TAXA;
+	DIMENSIONS NTAX = 49;
+	TAXLABELS
+		Tradescantia hirsuticaulis
+		Lilium parryi
+		Corrigiola litoralis
+		Viscaria vulgaris
+		Pinus contorta
+		Froelichia floridana
+		Abies balsamea
+		Silene nutans
+		Corylus avellana
+		Zostera noltei
+		Picea sitchensis
+		Atriplex tatarica
+		Cymodocea nodosa
+		Avicennia marina
+		Viola elatior
+		Viola pumila
+		Viola stagnina
+		Juncus atratus
+		Excoecaria agallocha
+		Narcissus longispathus
+		Vaccinium stamineum
+		Cypripedium
+		Saponaria bellidifolia
+		Neotinea maculata
+		Grevillea repens
+		Himantoglossum hircinum
+		Caryocar brasiliense
+		Austrocedrus chilensis
+		Juglans cinerea
+		Carex magellanica
+		Arabidopsis thaliana
+		Betula humilis
+		Epidendrum fulgens
+		Stipa capillata
+		Clarkia xantiana subsp. xantiana
+		Campanula americana
+		Pelliciera rhizophorae
+		Pinus massoniana
+		Anthyllis montana
+		Thuja occidentalis
+		Castanopsis sclerophylla
+		Isotria medeoloides
+		Euphorbia telephioides
+		Saccorhiza polyschides
+		Genista hystrix subsp. legionensis
+		Pulmonaria officinalis
+		Leavenworthia stylosa
+		Plantago coronopus
+		Cirsium canescens
+	;
+END;
+BEGIN TREES;
+	TRANSLATE
+		1	Tradescantia hirsuticaulis,
+		2	Lilium parryi,
+		3	Corrigiola litoralis,
+		4	Viscaria vulgaris,
+		5	Pinus contorta,
+		6	Froelichia floridana,
+		7	Abies balsamea,
+		8	Silene nutans,
+		9	Corylus avellana,
+		10	Zostera noltei,
+		11	Picea sitchensis,
+		12	Atriplex tatarica,
+		13	Cymodocea nodosa,
+		14	Avicennia marina,
+		15	Viola elatior,
+		16	Viola pumila,
+		17	Viola stagnina,
+		18	Juncus atratus,
+		19	Excoecaria agallocha,
+		20	Narcissus longispathus,
+		21	Vaccinium stamineum,
+		22	Cypripedium,
+		23	Saponaria bellidifolia,
+		24	Neotinea maculata,
+		25	Grevillea repens,
+		26	Himantoglossum hircinum,
+		27	Caryocar brasiliense,
+		28	Austrocedrus chilensis,
+		29	Juglans cinerea,
+		30	Carex magellanica,
+		31	Arabidopsis thaliana,
+		32	Betula humilis,
+		33	Epidendrum fulgens,
+		34	Stipa capillata,
+		35	Clarkia xantiana subsp. xantiana,
+		36	Campanula americana,
+		37	Pelliciera rhizophorae,
+		38	Pinus massoniana,
+		39	Anthyllis montana,
+		40	Thuja occidentalis,
+		41	Castanopsis sclerophylla,
+		42	Isotria medeoloides,
+		43	Euphorbia telephioides,
+		44	Saccorhiza polyschides,
+		45	Genista hystrix subsp. legionensis,
+		46	Pulmonaria officinalis,
+		47	Leavenworthia stylosa,
+		48	Plantago coronopus,
+		49	Cirsium canescens
+	;
+	TREE * UNTITLED = [&R] (44:50,(((11:6.038019256,7:6.038019256,(5:0.9610021327,38:0.9610021327)Pinus_subgen._Pinus:5.077017123)Pinaceae:22.29440678,(28:6.038019256,40:6.038019256)Cupressaceae:22.29440678)Pinidae:13.92915469,(25:37.10263455,(((36:12.32548491,49:12.32548491)Asterales:6.744287756,(21:12.32548491,37:12.32548491)Ericales:6.744287756,(46:15.8270065,(14:12.32548491,48:12.32548491)Lamiales:3.501521585)lamiids:3.242766171)asterids:4.103707189,(12:12.32548491,6:12.32548491,(23:6.038019256,3:6.038019256,(4:1.64138489,8:1.64138489)Sileneae:4.396634366)Caryophyllaceae:6.287465658)Caryophyllales:10.84799495,(((39:1.99313122,45:1.99313122)50_kb_inversion_clade:12.86657287,(41:12.32548491,29:12.32548491,(9:6.038019256,32:6.038019256)Betulaceae:6.287465658)Fagales:2.534219177,(27:12.32548491,(17:0.6317076956,15:0.6317076956,16:0.6317076956)Viola_subsect._Rostratae:11.69377722,(19:2.353057698,43:2.353057698)Euphorbioideae:9.972427216)Malpighiales:2.534219177)fabids:5.499805125,(35:16.85879574,(31:6.038019256,47:6.038019256)Brassicaceae:10.82077648)malvids:3.50071348)rosids:2.813970644)Pentapetalae:13.92915469,((10:12.32548491,13:12.32548491)Alismatales:18.58641422,((20:12.32548491,(42:6.038019256,33:6.038019256,22:6.038019256,(24:1.297455144,26:1.297455144)Orchidinae:4.740564111)Orchidaceae:6.287465658)Asparagales:16.00694113,2:28.33242604,(1:13.14005536,(34:12.32548491,18:12.32548491,30:12.32548491)Poales:0.8145704496)commelinids:15.19237068)Petrosaviidae:2.57947309)Liliopsida:6.190735417)Mesangiospermae:5.158946181)Spermatophyta:7.738419271)Eukaryota;
+END;

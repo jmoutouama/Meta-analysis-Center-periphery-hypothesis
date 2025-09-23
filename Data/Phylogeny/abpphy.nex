@@ -1,0 +1,315 @@
+#NEXUS
+[R-package APE, Mon Sep 22 14:17:08 2025]
+
+BEGIN TAXA;
+	DIMENSIONS NTAX = 151;
+	TAXLABELS
+		Abronia umbellata
+		Camissoniopsis cheiranthifolia
+		Acer pseudoplatanus
+		Fagus sylvatica
+		Prunus avium
+		Quercus petraea
+		Torminalis glaberrima
+		Taxus baccata
+		Tabebuia rosea
+		Carduus defloratus
+		Leavenworthia stylosa
+		Plantago coronopus
+		Bistorta vivipara
+		Silene acaulis
+		Abies amabilis
+		Abies fraseri
+		Abies procera
+		Abies magnifica var. shastensis
+		Vachellia farnesiana
+		Acer saccharum subsp. floridanum
+		Acer saccharum subsp. leucoderme
+		Acer saccharinum
+		Aesculus californica
+		Aesculus flava
+		Aesculus sylvatica
+		Alnus glutinosa
+		Alnus rhombifolia
+		Amelanchier sanguinea
+		Annona glabra
+		Arbutus menziesii
+		Avicennia germinans
+		Betula populifolia
+		Calocedrus decurrens
+		Carya aquatica
+		Carya illinoinensis
+		Carya myristiciformis
+		Carya ovalis
+		Carya pallida
+		Castanea pumila
+		Catalpa bignonioides
+		Catalpa speciosa
+		Chamaecyparis lawsoniana
+		Callitropsis nootkatensis
+		Chamaecyparis thyoides
+		Chrysolepis chrysophylla
+		Cinnamomum camphora
+		Cladrastis kentukea
+		Cornus nuttallii
+		Cotinus obovatus
+		Crataegus crus-galli
+		Crataegus mollis
+		Diospyros texana
+		Ehretia anacua
+		Fraxinus caroliniana
+		Fraxinus latifolia
+		Fraxinus profunda
+		Fraxinus quadrangulata
+		Fraxinus albicans
+		Fraxinus velutina
+		Gleditsia aquatica
+		Gordonia lasianthus
+		Halesia carolina
+		Halesia diptera
+		Juglans major
+		Juniperus ashei
+		Juniperus californica
+		Juniperus coahuilensis
+		Juniperus deppeana
+		Juniperus monosperma
+		Juniperus pinchotii
+		Laguncularia racemosa
+		Larix laricina
+		Notholithocarpus densiflorus
+		Magnolia fraseri
+		Magnolia grandiflora
+		Magnolia macrophylla
+		Magnolia tripetala
+		Malus angustifolia
+		Malus coronaria
+		Melaleuca quinquenervia
+		Melia azedarach
+		Morus alba
+		Nyssa aquatica
+		Nyssa sylvatica var. biflora
+		Nyssa ogeche
+		Paulownia tomentosa
+		Pinus aristata
+		Pinus attenuata
+		Pinus banksiana
+		Pinus cembroides
+		Pinus clausa
+		Pinus discolor
+		Pinus elliottii
+		Pinus glabra
+		Pinus lambertiana
+		Pinus palustris
+		Pinus remota
+		Pinus sabiniana
+		Pinus strobiformis
+		Pinus sylvestris
+		Planera aquatica
+		Populus heterophylla
+		Neltuma velutina
+		Prunus americana
+		Prunus emarginata
+		Prunus nigra
+		Quercus agrifolia
+		Quercus arizonica
+		Quercus bicolor
+		Quercus buckleyi
+		Quercus chrysolepis
+		Quercus douglasii
+		Quercus ellipsoidalis
+		Quercus emoryi
+		Quercus grisea
+		Quercus hypoleucoides
+		Quercus incana
+		Quercus kelloggii
+		Quercus laevis
+		Quercus lobata
+		Quercus lyrata
+		Quercus margarettae
+		Quercus minima
+		Quercus rugosa
+		Quercus shumardii
+		Quercus similis
+		Quercus sinuata
+		Quercus texana
+		Quercus wislizeni
+		Rhizophora mangle
+		Sabal palmetto
+		Salix amygdaloides
+		Salix bebbiana
+		Salix caroliniana
+		Sapindus saponaria
+		Sequoia sempervirens
+		Sideroxylon lanuginosum
+		Styphnolobium affine
+		Sorbus americana
+		Sorbus decora
+		Taxodium distichum var. imbricarium
+		Taxodium distichum
+		Torreya californica
+		Triadica sebifera
+		Tsuga caroliniana
+		Ulmus crassifolia
+		Ulmus pumila
+		Ulmus serotina
+		Umbellularia californica
+		Vernicia fordii
+		Astragalus utahensis
+	;
+END;
+BEGIN TREES;
+	TRANSLATE
+		1	Abronia umbellata,
+		2	Camissoniopsis cheiranthifolia,
+		3	Acer pseudoplatanus,
+		4	Fagus sylvatica,
+		5	Prunus avium,
+		6	Quercus petraea,
+		7	Torminalis glaberrima,
+		8	Taxus baccata,
+		9	Tabebuia rosea,
+		10	Carduus defloratus,
+		11	Leavenworthia stylosa,
+		12	Plantago coronopus,
+		13	Bistorta vivipara,
+		14	Silene acaulis,
+		15	Abies amabilis,
+		16	Abies fraseri,
+		17	Abies procera,
+		18	Abies magnifica var. shastensis,
+		19	Vachellia farnesiana,
+		20	Acer saccharum subsp. floridanum,
+		21	Acer saccharum subsp. leucoderme,
+		22	Acer saccharinum,
+		23	Aesculus californica,
+		24	Aesculus flava,
+		25	Aesculus sylvatica,
+		26	Alnus glutinosa,
+		27	Alnus rhombifolia,
+		28	Amelanchier sanguinea,
+		29	Annona glabra,
+		30	Arbutus menziesii,
+		31	Avicennia germinans,
+		32	Betula populifolia,
+		33	Calocedrus decurrens,
+		34	Carya aquatica,
+		35	Carya illinoinensis,
+		36	Carya myristiciformis,
+		37	Carya ovalis,
+		38	Carya pallida,
+		39	Castanea pumila,
+		40	Catalpa bignonioides,
+		41	Catalpa speciosa,
+		42	Chamaecyparis lawsoniana,
+		43	Callitropsis nootkatensis,
+		44	Chamaecyparis thyoides,
+		45	Chrysolepis chrysophylla,
+		46	Cinnamomum camphora,
+		47	Cladrastis kentukea,
+		48	Cornus nuttallii,
+		49	Cotinus obovatus,
+		50	Crataegus crus-galli,
+		51	Crataegus mollis,
+		52	Diospyros texana,
+		53	Ehretia anacua,
+		54	Fraxinus caroliniana,
+		55	Fraxinus latifolia,
+		56	Fraxinus profunda,
+		57	Fraxinus quadrangulata,
+		58	Fraxinus albicans,
+		59	Fraxinus velutina,
+		60	Gleditsia aquatica,
+		61	Gordonia lasianthus,
+		62	Halesia carolina,
+		63	Halesia diptera,
+		64	Juglans major,
+		65	Juniperus ashei,
+		66	Juniperus californica,
+		67	Juniperus coahuilensis,
+		68	Juniperus deppeana,
+		69	Juniperus monosperma,
+		70	Juniperus pinchotii,
+		71	Laguncularia racemosa,
+		72	Larix laricina,
+		73	Notholithocarpus densiflorus,
+		74	Magnolia fraseri,
+		75	Magnolia grandiflora,
+		76	Magnolia macrophylla,
+		77	Magnolia tripetala,
+		78	Malus angustifolia,
+		79	Malus coronaria,
+		80	Melaleuca quinquenervia,
+		81	Melia azedarach,
+		82	Morus alba,
+		83	Nyssa aquatica,
+		84	Nyssa sylvatica var. biflora,
+		85	Nyssa ogeche,
+		86	Paulownia tomentosa,
+		87	Pinus aristata,
+		88	Pinus attenuata,
+		89	Pinus banksiana,
+		90	Pinus cembroides,
+		91	Pinus clausa,
+		92	Pinus discolor,
+		93	Pinus elliottii,
+		94	Pinus glabra,
+		95	Pinus lambertiana,
+		96	Pinus palustris,
+		97	Pinus remota,
+		98	Pinus sabiniana,
+		99	Pinus strobiformis,
+		100	Pinus sylvestris,
+		101	Planera aquatica,
+		102	Populus heterophylla,
+		103	Neltuma velutina,
+		104	Prunus americana,
+		105	Prunus emarginata,
+		106	Prunus nigra,
+		107	Quercus agrifolia,
+		108	Quercus arizonica,
+		109	Quercus bicolor,
+		110	Quercus buckleyi,
+		111	Quercus chrysolepis,
+		112	Quercus douglasii,
+		113	Quercus ellipsoidalis,
+		114	Quercus emoryi,
+		115	Quercus grisea,
+		116	Quercus hypoleucoides,
+		117	Quercus incana,
+		118	Quercus kelloggii,
+		119	Quercus laevis,
+		120	Quercus lobata,
+		121	Quercus lyrata,
+		122	Quercus margarettae,
+		123	Quercus minima,
+		124	Quercus rugosa,
+		125	Quercus shumardii,
+		126	Quercus similis,
+		127	Quercus sinuata,
+		128	Quercus texana,
+		129	Quercus wislizeni,
+		130	Rhizophora mangle,
+		131	Sabal palmetto,
+		132	Salix amygdaloides,
+		133	Salix bebbiana,
+		134	Salix caroliniana,
+		135	Sapindus saponaria,
+		136	Sequoia sempervirens,
+		137	Sideroxylon lanuginosum,
+		138	Styphnolobium affine,
+		139	Sorbus americana,
+		140	Sorbus decora,
+		141	Taxodium distichum var. imbricarium,
+		142	Taxodium distichum,
+		143	Torreya californica,
+		144	Triadica sebifera,
+		145	Tsuga caroliniana,
+		146	Ulmus crassifolia,
+		147	Ulmus pumila,
+		148	Ulmus serotina,
+		149	Umbellularia californica,
+		150	Vernicia fordii,
+		151	Astragalus utahensis
+	;
+	TREE * UNTITLED = [&R] (((145:13.35499577,((99:1.183439963,97:1.183439963,95:1.183439963,92:1.183439963,87:1.183439963,90:1.183439963)Pinus_subgen._Strobus:5.895035134,(100:1.183439963,98:1.183439963,96:1.183439963,94:1.183439963,93:1.183439963,91:1.183439963,88:1.183439963,89:1.183439963)Pinus_subgen._Pinus:5.895035134)Pinus:6.276520676,72:13.35499577,(18:7.078475097,17:7.078475097,15:7.078475097,16:7.078475097)Abies:6.276520676)Pinaceae:24.02594464,((8:13.35499577,143:13.35499577)Taxaceae:7.078984645,((141:0.167139862,142:0.167139862)Taxodium_distichum:13.18785591,136:13.35499577,(70:7.078475097,69:7.078475097,68:7.078475097,67:7.078475097,65:7.078475097,66:7.078475097)Juniperus:6.276520676,43:13.35499577,33:13.35499577,(42:7.078475097,44:7.078475097)Chamaecyparis:6.276520676)Cupressaceae:7.078984645)Cupressales:16.94696)Pinidae:12.61905958,(131:43.69047021,((46:13.35499577,149:13.35499577)Lauraceae:10.02343188,(29:20.43398042,(77:7.078475097,76:7.078475097,74:7.078475097,75:7.078475097)Magnolia:13.35550532)Magnoliales:2.944447236)Magnoliidae:20.31204255,(((48:20.43398042,(85:7.078475097,83:7.078475097,84:7.078475097)Nyssa:13.35550532)Cornales:9.240320038,(137:20.43398042,(62:7.078475097,63:7.078475097)Halesia:13.35550532,61:20.43398042,30:20.43398042,52:20.43398042)Ericales:9.240320038,10:29.67430046,(53:26.23273875,(86:20.43398042,(59:7.078475097,58:7.078475097,57:7.078475097,56:7.078475097,54:7.078475097,55:7.078475097)Fraxinus:13.35550532,31:20.43398042,12:20.43398042,(9:13.35499577,(40:7.078475097,41:7.078475097)Catalpa:6.276520676)Bignoniaceae:7.078984645)Lamiales:5.798758333)lamiids:3.441561705)asterids:5.182828044,(14:20.43398042,1:20.43398042,13:20.43398042)Caryophyllales:14.42314808,((((144:13.35499577,150:13.35499577)Euphorbiaceae:7.078984645,130:20.43398042,(102:8.127662509,(134:7.078475097,132:7.078475097,133:7.078475097)Salix:1.049187412)Saliceae:12.30631791)Malpighiales:2.103176597,((60:9.080798172,(19:8.316006682,103:8.316006682)mimosoid_clade:0.76479149)Caesalpinioideae:4.274197601,(151:9.080798172,(47:7.251338927,138:7.251338927)Cladrastis_clade:1.829459245)Papilionoideae:4.274197601)Fabaceae:9.182161242,((64:13.35499577,(38:7.078475097,37:7.078475097,36:7.078475097,34:7.078475097,35:7.078475097)Carya:6.276520676)Juglandaceae:7.078984645,(73:13.35499577,45:13.35499577,39:13.35499577,4:13.35499577,(129:7.078475097,128:7.078475097,127:7.078475097,126:7.078475097,125:7.078475097,124:7.078475097,123:7.078475097,122:7.078475097,121:7.078475097,120:7.078475097,119:7.078475097,118:7.078475097,117:7.078475097,116:7.078475097,115:7.078475097,114:7.078475097,113:7.078475097,112:7.078475097,111:7.078475097,110:7.078475097,109:7.078475097,108:7.078475097,6:7.078475097,107:7.078475097)Quercus:6.276520676)Fagaceae:7.078984645,(32:13.35499577,(26:7.078475097,27:7.078475097)Alnus:6.276520676)Betulaceae:7.078984645)Fagales:2.103176597,((101:13.35499577,(148:7.078475097,146:7.078475097,147:7.078475097)Ulmus:6.276520676)Ulmaceae:7.078984645,82:20.43398042,((106:7.078475097,105:7.078475097,5:7.078475097,104:7.078475097)Prunus:2.002323075,((139:7.078475097,140:7.078475097)Sorbus:1.049187412,(78:7.078475097,79:7.078475097)Malus:1.049187412,(50:7.078475097,51:7.078475097)Crataegus:1.049187412,7:8.127662509,28:8.127662509)Maleae:0.9531356629)Amygdaloideae:11.35318225)Rosales:2.103176597)fabids:8.714525888,(11:25.18115045,(80:20.43398042,2:20.43398042,71:20.43398042)Myrtales:4.747170034,(81:20.43398042,49:20.43398042,(135:13.35499577,((22:7.078475097,3:7.078475097,(20:0.167139862,21:0.167139862)Acer_saccharum:6.911335235)Acer:2.002323075,(25:7.078475097,23:7.078475097,24:7.078475097)Aesculus:2.002323075)Hippocastanoideae:4.274197601)Sapindaceae:7.078984645)Sapindales:4.747170034)malvids:6.070532451)rosids:3.605445595)Pentapetalae:8.833341709)Mesangiospermae:6.309529792)Spermatophyta;
+END;

@@ -30,74 +30,6 @@ options(knitr.table.format = "latex")
 
 This is the code for the paper 'The center-periphery hypothesis revisited: a meta-analysis'.
 
-<style type="text/css">
-
-body{ /* Normal  */
-      font-size: 16px;
-      font-family: "Times New Roman"
-  }
-td {  /* Table  */
-  font-size: 14px;
-}
-h1.title {
-  font-size: 34px;
-  color: Black;
-  font-family: "Arial";
-}
-h1 { /* Header 1 */
-  font-size: 26px;
-  color: DarkBlue;
-  font-family: "Arial";
-}
-h2 { /* Header 2 */
-    font-size: 22px;
-    font-family: "Arial";
-    color: DarkBlue;
-}
-h3 { /* Header 3 */
-  font-size: 18px;
-  font-family: "Arial";
-  color: DarkBlue;
-}
-
-h4 { /* Header 4 */
-  font-size: 16px;
-  font-family: "Arial";
-  color: DarkBlue;
-}
-code.r{ /* Code block */
-    font-size: 12px;
-}
-pre { /* Code block - determines code spacing between lines */
-    font-size: 12px;
-}
-</style>
-
-
-**Variables**:\
-
-**eff_size:** Hedges's d and Z transform\
-**vi:**      sampling error variance\
-**se:**       sampling error\
-**mcenter, sdcenter, ncenter:** mean for populations at the range center, standard deviation at the range center, sample size for populations at the range center\
-**mperiphery,  sdperiphery,  nperiphery:**  mean for populations at the range periphery, standard deviation at the range periphery, sample size for populations at the range periphery\
-**correlation coefficient:**  Relation between population abundance and distance from geographic or niche centroid \
-**Years:** Year in which the article was published. 
-
-**Fixed effects:**
-
-1. **study design:**
-  + **Method:**  methods that were used to test  the center periphery hypothesis ( geographic distance, euclidean distance, mahanalobis distance)
-  + **Kingdom:**  Animal vs Plant
-2. **biological traits:**
-  + **lifespan:**  the length of time for which an animal exists
-  + **Pollination mode:**  Self vs Cross pollinated
-
-**Random effects:**\
-**Author**: Author name.\
-**Species**  : Identity of species [phylogenetic part].\
-
-
 ```{r eval=TRUE,echo=T}
 rm(list = ls(all = TRUE))
 ```
@@ -113,7 +45,7 @@ library(RColorBrewer)
 library(dplyr)
 library(tidytree)
 library(aplot)
-library(cowplot) 
+library(cowplot)
 library(ggpubr)
 library(ggsci)
 library(R.rsp)
@@ -134,15 +66,29 @@ library(tidybayes)
 library(formattable)
 library(grid)
 library(rstan)
+library(lme4)
+library(lmerTest)
+library(BIEN)
+library(readr)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(stringr)
+library(tidyr)
+library(writexl)
+library(ggridges)
+library(glue)
+library(forcats)
+library(tidybayes)
+library(posterior)
+library(bayestestR)
+library(rgbif)
+library(patchwork)
+#library(scater)
 rstan_options(auto_write = TRUE)
+set.seed(13)
 ```
 
-Store the Figures and the table
-
-```{r}
-dir.create('/Users/jm200/Library/CloudStorage/Dropbox/Miller Lab/github/Meta-analysis-Center-periphery-hypothesis/Figures',showWarnings = F)
-dir.create('/Users/jm200/Library/CloudStorage/Dropbox/Miller Lab/github/Meta-analysis-Center-periphery-hypothesis/Tables',showWarnings = F)
-```
 Function to export the model summary 
 ```{r}
 Ftable <- function(model, reorder = F, order, percent = F){
@@ -174,196 +120,346 @@ Ftable <- function(model, reorder = F, order, percent = F){
     kable_styling(position = "left")
   return(table)
 }
-
-
 ```
 
 Theme to use for all the graphs
 
 ```{r}
-theme <-  theme(panel.background = element_blank(),
-                panel.border = element_rect(fill = NA), 
-                strip.background = element_blank(),
-                axis.text.x = element_text(size = 10, colour = 'black'),
-                axis.text.y = element_text(size = 10, colour = 'black'),
-                #text        = element_text(size = 8),
-                axis.title.y = element_text(size = 10),# size of y lab
-                axis.title.x = element_text(size = 10),# size of X lab
-                legend.position     = "none",
-                legend.title        = element_text(size = 9),
-                legend.text         = element_text(size = 8),
-                legend.key.height   = unit(0.8,'line'),
-                legend.background   = element_blank(),
-                legend.key          = element_rect(colour = NA, fill = NA),
-                plot.title  = element_text(hjust = 0.5),
-                plot.margin = margin(t = 0.5, r = 0.5, b = 0.5, l = 0.5, unit = "cm"))
+my_theme <- theme(
+  panel.background = element_blank(),
+  panel.border = element_rect(fill = NA), 
+  strip.background = element_blank(),
+  axis.text.x = element_text(size = 10, colour = 'black'),
+  axis.text.y = element_text(size = 10, colour = 'black'),
+  axis.title.y = element_text(size = 10),
+  axis.title.x = element_text(size = 10),
+  legend.position = "none",
+  text = element_text(family = "Helvetica", size = 10, face = "plain"),
+  legend.title = element_text(size = 9),
+  legend.text = element_text(size = 8),
+  legend.key.height = unit(0.8, "line"),
+  legend.background = element_blank(),
+  legend.key = element_rect(colour = NA, fill = NA),
+  plot.title = element_text(hjust = 0.5),
+  plot.margin = margin(t = 0.5, r = 0.5, b = 0.5, l = 0.5, unit = "cm")
+)
 ```
 
+# Location of empirical studies tesing the CPH
+```{r}
+# Read your country list 
+country_data <- read.csv("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Data/location_study.csv",
+                         header = TRUE, stringsAsFactors = FALSE)
+
+# If multiple countries in one row, split them
+countries_long <- country_data %>%
+  mutate(Country = str_split(Country, ",")) %>%
+  unnest(Country) %>%
+  mutate(Country = str_trim(Country)) %>%
+  filter(Country != "") %>%
+  distinct(Country)
+
+unique_countries <- countries_long$Country
+
+# Get world map
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+# Filter only the countries from your list
+world_selected <- world %>%
+  filter(admin %in% unique_countries)
+
+# Add centroid points for occurrences
+# Reproject to Mollweide (good global projection)
+world_selected_proj <- st_transform(world_selected, crs = "+proj=moll")
+
+# Safe centroids inside polygons
+centroids_proj <- st_point_on_surface(world_selected_proj)
+
+# Transform back to lon/lat
+centroids <- st_transform(centroids_proj, crs = st_crs(world_selected))
+
+
+# # ---- 4. Create tropical belt polygon (between -23.5 and 23.5 latitude) ----
+# tropics <- st_polygon(list(rbind(
+#   c(-180, -23.5), c(180, -23.5), c(180, 23.5), c(-180, 23.5), c(-180, -23.5)
+# ))) %>%
+#   st_sfc(crs = st_crs(world))
+
+tropic_lines <- data.frame(
+  long = c(-180, 180, -180, 180),
+  lat  = c(-23.5, -23.5, 23.5, 23.5),
+  group = c("South", "South", "North", "North")
+)
+# ---- 5. Plot ----
+Fig0 <- ggplot() +
+  # Ocean background (light blue rectangle spanning world extent)
+  annotate("rect", xmin = -180, xmax = 180, ymin = -90, ymax = 90,
+           fill = "lightblue", color = NA) +
+  geom_sf(data = world, fill = "grey90", color = "white") +
+  geom_line(data = tropic_lines, aes(x = long, y = lat, group = group),
+            color = "grey30", size = 0.6, linetype = "dashed") +
+  geom_sf(data = world_selected, fill = "grey90", color = "white") + # Selected countries
+  geom_sf(data = centroids, color = "red", size = 1) +               # Occurrence points
+  #geom_sf_text(data = centroids, aes(label = admin), size = 3, vjust = -1) + # Labels
+  coord_sf(expand = FALSE) +
+  theme_light() +
+  labs(x = "Longitude", y = "Latitude") +
+  theme(
+    axis.title = element_text(size = 14),  # x and y label size
+    axis.text = element_text(size = 12)    # tick label size
+  )
+
+
+# Export as PDF
+# ggsave(filename = "/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Figure/map_study_countries.pdf",
+#        plot = Fig0, width = 10, height = 6)
+
+```
 
 # What is the magnitude of the cumulative effect size across studies for CPH support, and is it significantly different from zero?  
 
 ## Population growth rate and CPH
 
 ```{r}
-Lambdacp <- read.csv("/Users/jm200/Library/CloudStorage/Dropbox/Miller Lab/github/Meta-analysis-Center-periphery-hypothesis/Data/Lambda.csv", header = T)
+datlambda <- read.csv("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Data/datlambda.csv", header = T)
 ```
-
-### Standardized Mean Difference: Hedges’s d (SDM)
 
 ```{r}
-datlambdacp <- escalc("SMDH", m1i = mcenter, m2i = mperiphery, sd1i = sdcenter, sd2i = sdperiphery, n1i = ncenter, n2i = nperiphery, slab = Author, data = Lambdacp)
-Lambdar <- read.csv("/Users/jm200/Library/CloudStorage/Dropbox/Miller Lab/github/Meta-analysis-Center-periphery-hypothesis/Data/Lambdar.csv", header = T)
-datlambda<-rbind(datlambdacp,Lambdar)
-datlambda$se<-sqrt(datlambda$vi)
-datlambda$ID<-as.factor(datlambda$ID)
+#unique(datlambda$Method)
 ```
 
-### Phylogeny tree 
 
-```{r,eval=FALSE}
-sp.lambda <- datlambda[,5]
-spnames <- as.character(sp.lambda)
-species1 <- unique(spnames)
-# length(species1)
-species2 <- gsub("\n", "", species1)
-# species2 <- gsub("\xca", " ", species1)
-temp <- gnr_resolve(species2, best_match_only = TRUE, canonical = TRUE)
-dat <- merge(data.frame(species2), temp[,c("user_supplied_name", "matched_name2")], 
-               by.x = "species2", by.y = "user_supplied_name", all.x = TRUE)
-# Retrieve classifications)
-resolved_names <- classification(dat[, 2], db = "ncbi")
-resolved_names <- unique(resolved_names)
-# Building a phylogenetic tree
-lambdatree <- class2tree(resolved_names)
-(lambdaphy <- lambdatree$phylo)
-# plot(lambdaphy)
-```
-
-### Computes the expected variances and covariances of branch length 
-
+# Stastic to get how many of data we have per species. 
 ```{r}
-# datlambda$Species<-gsub("\xca", " ", datlambda$Species) 
-lambdaphyclean<-drop.tip(lambdaphy, lambdaphy$tip.label[-na.omit(match(datlambda$Species, lambdaphy$tip.label))])
-A<-ape::vcv.phylo(lambdaphyclean)
+total_studies <- n_distinct(datlambda$ID)
+
+# Total number of species
+# Count unique species overall
+total_species <- n_distinct(datlambda$Species)
+
+# Count unique species by kingdom
+species_by_kingdom <- datlambda %>%
+  group_by(Kingdom) %>%
+  summarize(n_species = n_distinct(Species))
+
+# Count repetitions for each species
+species_counts <- datlambda %>%
+  group_by(Species, Kingdom) %>%
+  summarize(n_records = n()) %>%
+  arrange(desc(n_records))
 ```
 
 ### Grand Mean effect size and significance 
 
 ```{r}
-priors <- c(prior(normal(0,1), class = Intercept),
-            prior(cauchy(0,0.5), class = sd))
-Lambdamodel <- brm(
-  yi | se(se,sigma=TRUE) ~ 1 + (1 | ID) +  (1 | Author) +  (1 | Species),
-  data = datlambda,
-  family = gaussian(),
-   control = list(adapt_delta = 0.9999, max_treedepth = 15),
-  prior = priors,
-                   iter = 3000, cores = 4
+# Define priors
+priors_lb <- c(
+  prior(normal(0, 1), class = "Intercept"),
+  prior(cauchy(0, 0.5), class = "sd")
 )
 
+# 6. Fit brms model with phylogeny
+Lambdamodel <- brm(
+  yi | se(se,sigma=TRUE) ~ 1 + (1|ID) + (1|Species),
+  data = datlambda,
+  seed = 13,
+  family = gaussian(),
+  prior = priors_lb,
+  control = list(adapt_delta = 0.99, max_treedepth = 15),
+  iter = 3000,
+  cores = 4
+)
 ```
-
-```{r}
-mcmc_plot(Lambdamodel,prob=0.95,variable ="b_Intercept")
-summary(Lambdamodel)
-plot(Lambdamodel)
-```
-
 
 ### Predictive check for population growth rate
 
 ```{r}
-pp_check(Lambdamodel)+
-  xlab("Growth rate status")+ylab("Density")+
-  ggtitle((""))+theme->ppc_growthrate
-```
-
-### MCMC Mixing
-
-```{r}
-plot(Lambdamodel)
+pp_check(Lambdamodel,ndraws = 1000)+
+  xlab("Population growth rate")+ylab("Density")+
+  ggtitle("")+
+  my_theme->ppc_growthrate
 ```
 
 ### Value for Grand Mean effect size
 
 ```{r}
 Lambdamodel %>% Ftable(percent = T)
-summary(Lambdamodel)
 ```
 
 ### empirical cumulative distribution function
+
 ```{r}
 #get_variables(Lambdamodel)
 post.samples_lambda <- posterior_samples(Lambdamodel, pars="^b_Intercept")
+post.samples_lambda <- as_draws_df(Lambdamodel)  # gets all posterior draws as a data.frame
+# Select only intercepts (columns starting with "b_Intercept")
+post.samples_lambda <- post.samples_lambda[, grepl("^b_Intercept", colnames(post.samples_lambda))]
 mean(post.samples_lambda$b_Intercept>0)
 smd.ecdf_lambda <- ecdf(post.samples_lambda$b_Intercept)
 smd.ecdf_lambda(0)
-# We see that with 17.61%, the probability of our pooled effect being smaller than 0 is high.
+#We see that with 28.73%, the probability of our pooled effect being smaller than 0.30 is very, very low. 
 ```
 
+### Forest plot for lambda 
+```{r}
+# Extract study- and species-level draws
+study.draws_lb <- Lambdamodel %>%
+  spread_draws(r_ID[ID,], r_Species[Species,], b_Intercept) %>%
+  # Combine random effects and intercept
+  mutate(b_Intercept = r_ID + r_Species + b_Intercept)
+
+# Create pooled effect draws (just fixed effect intercept)
+pooled.effect.draws_lb <- Lambdamodel %>%
+  spread_draws(b_Intercept) %>%
+  mutate(ID = "Pooled Effect")
+
+# Prepare study-level data
+study_data_lb <- study.draws_lb %>%
+  mutate(ID = as.character(ID)) %>%
+  mutate(ID = str_replace_all(ID, "[.]", " ")) %>%
+  # reorder studies by effect size
+  mutate(ID = reorder(ID, b_Intercept))
+
+# Bind pooled effect at bottom
+forest.data_lb <- bind_rows(study_data_lb, pooled.effect.draws_lb) %>%
+  # ensure ID is character so releveling works
+  mutate(ID = as.character(ID)) %>%
+  # ensure Pooled Effect is last
+  mutate(ID = fct_relevel(ID, "Pooled Effect", after = Inf)) %>%
+  # add a flag for coloring in the plot
+  mutate(effect_type = ifelse(ID == "Pooled Effect", "Pooled", "Study")) %>%
+  ungroup()
+
+# Summaries (mean and 95% interval)
+forest.data.summary_lb <- forest.data_lb %>%
+  group_by(ID) %>%
+  mean_qi(b_Intercept) %>%
+  # ensure Pooled Effect is last in summary as well
+  mutate(ID = fct_relevel(ID, "Pooled Effect", after = Inf)) %>%
+  # add the same effect_type column for the summary
+  mutate(effect_type = ifelse(ID == "Pooled Effect", "Pooled", "Study"))
+```
+
+```{r}
+pdf("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Figure/lambda_cp_forest.pdf", width = 6, height = 6)
+ggplot(forest.data_lb, aes(x = b_Intercept, y = ID, fill = effect_type)) +
+  # Vertical lines: pooled effect, CI, and zero
+  #geom_vline(xintercept = fixef(Lambdamodel)[1, 1], color = "grey", size = 1) +
+  geom_vline(xintercept = fixef(Lambdamodel)[1, 3:4],
+             color = "grey", linetype = 2) +
+  geom_vline(xintercept = 0, color = "black", size = 0.75) +
+  
+  # Ridge densities
+  geom_density_ridges(rel_min_height = 0.01, col = NA, scale = 1, alpha = 0.8) +
+  
+  # Point-intervals (explicit xmin/xmax)
+  geom_pointinterval(
+    data = forest.data.summary_lb,
+    aes(x = b_Intercept, y = ID, xmin = .lower, xmax = .upper, color = effect_type),
+    size = 1,
+    orientation = "y"
+  ) +
+  
+  # Labels with estimates and intervals
+  geom_text(
+    data = mutate_if(forest.data.summary_lb, is.numeric, round, 2),
+    aes(label = glue("{b_Intercept} [{.lower}, {.upper}]"), y = ID, x = 2.8),
+    hjust = "inward",size = 3
+  ) +
+  
+  # Discrete y-axis scale (reversed so top-down)
+  scale_y_discrete(limits = rev(levels(forest.data_lb$ID)),expand = expansion(add = 0.75)) +
+  
+  # Manual colors for pooled vs studies
+  scale_fill_manual(values = c("Study" = "#E69F00", "Pooled" = "#56B4E9")) +
+  scale_color_manual(values = c("Study" = "#E69F00", "Pooled" = "#56B4E9")) +
+  
+  labs(x = "Effect size (lambda)", y = NULL) +
+  my_theme
+dev.off()
+
+```
 
 ### Heterogeneity for population growth rate
-
 ```{r}
-dathlambda<-datlambda[-c(11,18),]
-var_lambda <- sum(1/dathlambda$vi)*(nrow(dathlambda)-1)/((sum(1/dathlambda$vi))^2-sum((1/dathlambda$vi)^2))
-var_samp_lambda <- Lambdamodel %>% 
-  posterior_samples() %>% 
-  select(starts_with('sd'), sigma) %>% 
-  transmute_all(.funs = list(sq = ~(. ^ 2))) %>% # sd to variance
-  mutate(sampling = var_lambda) %>%  # sampling variance
-  mutate(total_var = rowSums(.),
-         no_sample = total_var - sampling)
-colnames(var_samp_lambda) <- colnames(var_samp_lambda) %>% 
-  str_remove_all('__Intercept|_sq|sd_')
-```
+# Function to calculate h (quantified heterogeneity in percent)
+bayes_h <- function(fit, group = c("ID", "Species", "residual")) {
+  library(posterior)
+  library(parameters)
+  
+  # Extract posterior draws
+  post <- as_draws_df(fit)
+  
+  # Variance components
+  tau2_ID <- if ("sd_ID__Intercept" %in% names(post)) post$`sd_ID__Intercept`^2 else 0
+  tau2_Species <- if ("sd_Species__Intercept" %in% names(post)) post$`sd_Species__Intercept`^2 else 0
+  sigma2 <- if ("sigma" %in% names(post)) post$sigma^2 else 0
+  
+  # Total variance
+  V_total <- tau2_ID + tau2_Species + sigma2
+  
+  out <- list()
+  
+  if ("ID" %in% group) {
+    h_ID <- 100 * tau2_ID / V_total
+    out$ID <- describe_posterior(h_ID, centrality = "all", ci = 0.95)
+  }
+  
+  if ("Species" %in% group) {
+    h_Species <- 100 * tau2_Species / V_total
+    out$Species <- describe_posterior(h_Species, centrality = "all", ci = 0.95)
+  }
+  
+  if ("residual" %in% group) {
+    h_residual <- 100 * sigma2 / V_total
+    out$residual <- describe_posterior(h_residual, centrality = "all", ci = 0.95)
+  }
+  
+  return(out)
+}
 
-```{r}
-# I^2 and lambda
-I_square_lambda <- hypothesis(var_samp_lambda, c('Author/total_var= 0',
-                                   'Species/total_var = 0',
-                                   'sigma/total_var = 0',
-                                   'Species/no_sample = 0'))$hypothesis %>% 
-  as_tibble() %>% 
-  select(-Evid.Ratio, -Post.Prob, -Star)
+# Example usage
+bayes_h(Lambdamodel)
 
-I_square_lambda[,1] <- c('Author', 'Species', 'sigma','Phylogenetic signal')
-colnames(I_square_lambda) <- c('', 'Estimate', 'SE', 'L95%CL', 'U95%CL')
-I_square_lambda <- I_square_lambda %>% 
-  kable(digits = 4, escape = F, table.attr = "style = \"color: black;\"") %>% 
-  kable_styling()
-I_square_lambda
+
 ```
 
 ## Genetics and CPH
 
 ```{r}
-gencp <- read.csv("/Users/jm200/Library/CloudStorage/Dropbox/Miller Lab/github/Meta-analysis-Center-periphery-hypothesis/Data/genetic.csv", header = T)
-genr <- read.csv("/Users/jm200/Library/CloudStorage/Dropbox/Miller Lab/github/Meta-analysis-Center-periphery-hypothesis/Data/geneticr.csv", header = T)
-
+datgencp <- read.csv("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Data/datgencp.csv", header = T)
+#unique(datgencp$Method)
 ```
 
-### Standardized Mean Difference: Hedges’s d (SDM)
-
 ```{r}
-datgen <- escalc("SMDH", m1i = mcenter, m2i = mperiphery, sd1i = sdcenter, sd2i = sdperiphery, n1i = ncenter, n2i = nperiphery, slab = Author, data = gencp)
-datgencp<-rbind(datgen,genr)
-datgencp <- datgen[!apply(datgen[,c("yi", "vi")], 1, anyNA),] 
-datgencp$se<-sqrt(datgencp$vi)
-datgencp$ID<-as.factor(datgencp$ID)
-str(datgencp)
+total_studies_g <- n_distinct(datgencp$ID)
+# Count unique species overall
+total_species <- n_distinct(datgencp$Species)
+
+# Count unique species by kingdom
+species_by_kingdom <- datgencp %>%
+  group_by(Kingdom) %>%
+  summarize(n_species = n_distinct(Species))
+
+# Count repetitions for each species
+species_counts <- datgencp %>%
+  group_by(Species, Kingdom) %>%
+  summarize(n_records = n()) %>%
+  arrange(desc(n_records))
+
+total_species
+species_by_kingdom
 ```
 
 ### Grand Mean effect size and significance 
 
 ```{r, warning=FALSE}
-priors <- c(prior(normal(0,1), class = Intercept),
+priors_gn <- c(prior(normal(0,1), class = Intercept),
             prior(cauchy(0,0.5), class = sd))
 genamodel <- brm(
   yi | se(se,sigma=TRUE) ~ 1 + (1 | ID) + (1|Species),
   control = list(adapt_delta = 0.9999, max_treedepth = 20),
-  prior = priors,
-                   iter = 5000, cores = 4,
+  prior = priors_gn, iter = 8000, cores = 4,seed = 13,
   data = datgencp
 )
 ```
@@ -371,15 +467,9 @@ genamodel <- brm(
 ### Predictive check for genetic diversity
 
 ```{r}
-pp_check(genamodel)+
-  xlab("Genetic diversity status")+ylab("Density")+
-  ggtitle((""))+theme->ppc_genetic
-```
-
-### MCMC Mixing
-
-```{r}
-plot(genamodel)
+pp_check(genamodel,ndraws = 1000)+
+  xlab("Genetic diversity")+ylab("Density")+
+  ggtitle((""))+my_theme->ppc_genetic
 ```
 
 ### Value for Grand Mean effect size for genetic diversity
@@ -391,33 +481,8 @@ genamodel %>% Ftable(percent = T)
 # Heterogeinity for genetic diversity 
 
 ```{r}
-var_gen <- sum(1/datgencp$vi)*(nrow(datgencp)-1)/((sum(1/datgencp$vi))^2-sum((1/datgencp$vi)^2))
-var_samp_gen <- genamodel %>% 
-  posterior_samples() %>% 
-  select(starts_with('sd'), sigma) %>% 
-  transmute_all(.funs = list(sq = ~(. ^ 2))) %>% # sd to variance
-  mutate(sampling = var_gen) %>%  # sampling variance
-  mutate(total_var = rowSums(.),
-         no_sample = total_var - sampling)
-colnames(var_samp_gen) <- colnames(var_samp_gen) %>% 
-  str_remove_all('__Intercept|_sq|sd_')
-```
+bayes_h(genamodel)
 
-```{r}
-# I^2 and lambda
-I_square_gen <- hypothesis(var_samp_gen, c(
-                                   'Species/total_var = 0',
-                                   'ID/total_var = 0',
-                                   'sigma/total_var = 0'))$hypothesis %>% 
-  as_tibble() %>% 
-  select(-Evid.Ratio, -Post.Prob, -Star)
-
-I_square_gen[,1] <- c('Species', 'ID','sigma')
-colnames(I_square_gen) <- c('', 'Estimate', 'SE', 'L95%CL', 'U95%CL')
-I_square_gen <- I_square_gen %>% 
-  kable(digits = 4, escape = F, table.attr = "style = \"color: black;\"") %>% 
-  kable_styling()
-I_square_gen
 ```
 
 ### empirical cumulative distribution function
@@ -427,90 +492,241 @@ post.samples_gen <- posterior_samples(genamodel, pars="^b_Intercept")
 mean(post.samples_gen$b_Intercept>0)
 smd.ecdf_gen <- ecdf(post.samples_gen$b_Intercept)
 smd.ecdf_gen(0)
+# ~98.86% of values are > 0.
 ```
+
+### Forest plot for genetic 
+
+```{r}
+# Extract study- and species-level draws
+study.draws_gn <- genamodel %>%
+  spread_draws(r_ID[ID,], r_Species[Species,], b_Intercept) %>%
+  # Combine random effects and intercept
+  mutate(b_Intercept = r_ID + r_Species + b_Intercept)
+
+# Create pooled effect draws (just fixed effect intercept)
+pooled.effect.draws_gn <- genamodel %>%
+  spread_draws(b_Intercept) %>%
+  mutate(ID = "Pooled Effect")
+
+# Prepare study-level data
+study_data_gn <- study.draws_gn %>%
+  mutate(ID = as.character(ID)) %>%
+  mutate(ID = str_replace_all(ID, "[.]", " ")) %>%
+  # Reorder studies by effect size
+  mutate(ID = reorder(ID, b_Intercept))
+
+# Bind pooled effect at bottom
+forest.data_gn <- bind_rows(study_data_gn, pooled.effect.draws_gn) %>%
+  mutate(ID = as.character(ID)) %>%
+  mutate(ID = fct_relevel(ID, "Pooled Effect", after = Inf)) %>%
+  mutate(effect_type = ifelse(ID == "Pooled Effect", "Pooled", "Study")) %>%
+  ungroup()
+
+# Summaries (mean and 95% interval)
+forest.data.summary_gn <- forest.data_gn %>%
+  group_by(ID) %>%
+  mean_qi(b_Intercept) %>%
+  mutate(ID = fct_relevel(ID, "Pooled Effect", after = Inf)) %>%
+  mutate(effect_type = ifelse(ID == "Pooled Effect", "Pooled", "Study"))
+```
+
+```{r}
+# Plot and save
+pdf("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Figure/gen_cp_forest.pdf", 
+    width = 5, height = 10)
+
+ggplot(forest.data_gn, aes(x = b_Intercept, y = ID, fill = effect_type)) +
+  
+  # Vertical lines: pooled effect CI and zero
+  geom_vline(xintercept = fixef(genamodel)[1, 3:4], color = "grey", linetype = 2) +
+  geom_vline(xintercept = 0, color = "black", size = 0.75) +
+  
+  # Ridge densities
+  geom_density_ridges(rel_min_height = 0.01, col = NA, scale = 1, alpha = 0.8) +
+  
+  # Point-intervals (mean + 95% CI)
+  geom_pointinterval(
+    data = forest.data.summary_gn,
+    aes(x = b_Intercept, y = ID, xmin = .lower, xmax = .upper, color = effect_type),
+    size = 1, orientation = "y"
+  ) +
+  # Limitation of x axis
+  xlim(-1.5,4.5) +
+  
+  # Labels with estimates and intervals
+  geom_text(
+    data = mutate_if(forest.data.summary_gn, is.numeric, round, 2),
+    aes(label = glue("{b_Intercept} [{.lower}, {.upper}]"), y = ID, x = 4),
+    hjust = "inward", size = 3
+  ) +
+  
+  # Reverse y-axis
+  scale_y_discrete(limits = rev(levels(forest.data_gn$ID)), expand = expansion(add = 0.75)) +
+  
+  # Manual colors
+  scale_fill_manual(values = c("Study" = "#E69F00", "Pooled" = "#56B4E9")) +
+  scale_color_manual(values = c("Study" = "#E69F00", "Pooled" = "#56B4E9")) +
+  
+  labs(x = "Effect size (genetic diversity)", y = NULL) +
+  my_theme
+
+dev.off()
+
+```
+
 
 ## Population abundance and CPH
 
 ```{r}
-Abundcp <- read.csv("C:/Users/jm200/Documents/Data/Abundance.csv", header = T)
-Abundcp$Species<-gsub("spp.","",as.character(Abundcp$Species))
-Abundcp$Species<-gsub("sp.","",as.character(Abundcp$Species))
+databuncp <- read.csv("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Data/databuncp.csv", header = T)
+databuncp$Species<-gsub("spp.","sp.",as.character(databuncp$Species))
+unique(databuncp$Method)
+databuncp <- databuncp %>% filter(vi > 0)
 ```
 
-### Fisher’s Z-transformed-r
-
 ```{r}
-databun <- escalc("ZCOR", ri = correlation.coefficient, ni = sample_size, data = Abundcp)
-Abundcp <- read.csv("C:/Users/jm200/Documents/Data/Abundancez.csv", header = T)
-databuncp<-rbind(databun,Abundcp)
-databuncp<-databun[!apply(databun[,c("yi", "vi")], 1, anyNA),] 
-databuncp$se<-sqrt(databuncp$vi)
+total_studies_ab <- n_distinct(databuncp$ID)
+# Count unique species overall
+total_species <- n_distinct(databuncp$Species)
+
+# Count unique species by kingdom
+species_by_kingdom <- databuncp %>%
+  group_by(Kingdom) %>%
+  summarize(n_species = n_distinct(Species))
+
+# Count repetitions for each species
+species_counts <- databuncp %>%
+  group_by(Species, Kingdom) %>%
+  summarize(n_records = n()) %>%
+  arrange(desc(n_records))
+
+total_species
+species_by_kingdom
 ```
 
 ### Grand Mean effect size and significance 
 
 ```{r}
 abunmodel <- brm(
-  yi | se(se, sigma = TRUE) ~ 1 + (1 | Author) + (1|Species),
-  data = databuncp
+  yi | se(se,sigma=TRUE) ~ 1 + (1 | ID) + (1 | Species),
+  data = databuncp,seed = 13,
+  iter = 4000, warmup = 2000, chains = 4
 )
 ```
 
 ### Predictive check for population abundance 
 
 ```{r}
-pp_check(abunmodel)+
-  xlab("Abundance status")+ylab("Density")+
-  ggtitle((""))+theme->ppc_abundance
-```
-
-```{r}
-plot(abunmodel)
+ppc_abundance <- pp_check(abunmodel, ndraws = 1000) +
+  xlab("Abundance") +
+  ylab("Density") +
+  ggtitle("") +
+  coord_cartesian(xlim = c(-2, 2), ylim = c(0, 3)) +
+  my_theme
 ```
 
 ```{r}
 abunmodel %>% Ftable(percent = T)
+#summary(abunmodel)
 ```
 
 ### Heterogeinity for abundance data
-```{r}
-var_abun <- sum(1/databuncp$vi)*(nrow(databuncp)-1)/((sum(1/databuncp$vi))^2-sum((1/databuncp$vi)^2))
-var_samp_abun <- abunmodel %>% 
-  posterior_samples() %>% 
-  select(starts_with('sd'), sigma) %>% 
-  transmute_all(.funs = list(sq = ~(. ^ 2))) %>% # sd to variance
-  mutate(sampling = var_abun) %>%  # sampling variance
-  mutate(total_var = rowSums(.),
-         no_sample = total_var - sampling)
-colnames(var_samp_abun) <- colnames(var_samp_abun) %>% 
-  str_remove_all('__Intercept|_sq|sd_')
-```
 
 ```{r}
-# I^2 and lambda
-I_square_abun <- hypothesis(var_samp_abun, c('Author/total_var= 0',
-                                   'Species/total_var = 0',
-                                   'sigma/total_var = 0',
-                                   'Species/no_sample = 0'))$hypothesis %>% 
-  as_tibble() %>% 
-  select(-Evid.Ratio, -Post.Prob, -Star)
-
-I_square_abun[,1] <- c('Author', 'Species', 'sigma','Phylogenetic signal')
-colnames(I_square_abun) <- c('', 'Estimate', 'SE', 'L95%CL', 'U95%CL')
-I_square_abun <- I_square_abun %>% 
-  kable(digits = 4, escape = F, table.attr = "style = \"color: black;\"") %>% 
-  kable_styling()
-I_square_abun
+bayes_I2(abunmodel, group = c("ID", "Species", "total"))
+bayes_h(abunmodel)
 ```
+
 
 ### empirical cumulative distribution function
 ```{r}
-#get_variables(Lambdamodel)
-post.samples_ab <- posterior_samples(abunmodel, pars="^b_Intercept")
-mean(post.samples_ab$b_Intercept>0)
-smd.ecdf_ab <- ecdf(post.samples_ab$b_Intercept)
-smd.ecdf_ab(0)
-# We see that with 00.68%, the probability of our pooled effect being smaller than 20 is high
+# Extract intercept posterior samples as numeric
+post.samples_ab <- as_draws_df(abunmodel) %>%
+  dplyr::pull(b_Intercept)
+# Posterior probability Intercept > 0
+p_greater <- mean(post.samples_ab > 0)
+# Posterior probability Intercept <= 0
+p_less_equal <- ecdf(post.samples_ab)(0)
+c(P_greater = p_greater, P_less_equal = p_less_equal)
+
+```
+
+### Forest plot for abundance
+```{r}
+# Extract study- and species-level draws
+study.draws_ab <- abunmodel %>%
+  spread_draws(r_ID[ID,], r_Species[Species,], b_Intercept, ndraws = 1000) %>%
+  # Combine random effects and intercept
+  mutate(b_Intercept = r_ID + r_Species + b_Intercept)
+
+# Create pooled effect draws (just fixed effect intercept)
+pooled.effect.draws_ab <- abunmodel %>%
+  spread_draws(b_Intercept, ndraws = 1000) %>%
+  mutate(ID = "Pooled Effect")
+
+# Prepare study-level data
+study_data_ab <- study.draws_ab %>%
+  mutate(ID = as.character(ID)) %>%
+  mutate(ID = str_replace_all(ID, "[.]", " ")) %>%
+  # Reorder studies by effect size
+  mutate(ID = reorder(ID, b_Intercept))
+
+# Bind pooled effect at bottom
+forest.data_ab <- bind_rows(study_data_ab, pooled.effect.draws_ab) %>%
+  mutate(ID = as.character(ID)) %>%
+  mutate(ID = fct_relevel(ID, "Pooled Effect", after = Inf)) %>%
+  mutate(effect_type = ifelse(ID == "Pooled Effect", "Pooled", "Study")) %>%
+  ungroup()
+# Summaries (mean and 95% interval)
+forest.data.summary_ab <- forest.data_ab %>%
+  group_by(ID) %>%
+  mean_qi(b_Intercept) %>%
+  mutate(ID = fct_relevel(ID, "Pooled Effect", after = Inf)) %>%
+  mutate(effect_type = ifelse(ID == "Pooled Effect", "Pooled", "Study"))
+
+```
+
+```{r}
+# Plot and save
+pdf("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Figure/abun_cp_forest.pdf", 
+    width = 5, height =8)
+
+ggplot(forest.data_ab, aes(x = b_Intercept, y = ID, fill = effect_type)) +
+  
+  # Vertical lines: pooled effect CI and zero
+  geom_vline(xintercept = fixef(abunmodel)[1, 3:4], color = "grey", linetype = 2) +
+  geom_vline(xintercept = 0, color = "black", size = 0.75) +
+  
+  # Ridge densities
+  geom_density_ridges(rel_min_height = 0.01, col = NA, scale = 1, alpha = 0.8) +
+  
+  # Point-intervals (mean + 95% CI)
+  geom_pointinterval(
+    data = forest.data.summary_ab,
+    aes(x = b_Intercept, y = ID, xmin = .lower, xmax = .upper, color = effect_type),
+    size = 1, orientation = "y"
+  ) +
+  # Limitation of x axis
+  xlim(-2,4) +
+  # Labels with estimates and intervals
+  geom_text(
+    data = mutate_if(forest.data.summary_ab, is.numeric, round, 2),
+    aes(label = glue("{b_Intercept} [{.lower}, {.upper}]"), y = ID, x = 3.75),
+    hjust = "inward", size = 3
+  ) +
+  
+  # Reverse y-axis
+  scale_y_discrete(limits = rev(levels(forest.data_ab$ID)), expand = expansion(add = 0.75)) +
+  
+  # Manual colors
+  scale_fill_manual(values = c("Study" = "#E69F00", "Pooled" = "#56B4E9")) +
+  scale_color_manual(values = c("Study" = "#E69F00", "Pooled" = "#56B4E9")) +
+  
+  labs(x = "Effect size (abundance)", y = NULL) +
+  my_theme
+
+dev.off()
 ```
 
 
@@ -518,74 +734,84 @@ smd.ecdf_ab(0)
 ## Testing if adding data from Dallas et al , 2017  improve the results
 
 ```{r}
-AbundcpDallas <- read.csv("C:/Users/jm200/Documents/Data/Abundance_withoutDallas.csv", header = T)
-AbundcpDallas$Species<-gsub("spp.","",as.character(AbundcpDallas$Species))
-AbundcpDallas$Species<-gsub("sp.","",as.character(AbundcpDallas$Species))
-```
-
-### Fisher’s Z-transformed-r
-
-```{r}
-databunDallas <- escalc("ZCOR", ri = correlation.coefficient, ni = sample_size, data = AbundcpDallas)
-AbundcpDallas <- read.csv("C:/Users/jm200/Documents/Data/Abundancez.csv", header = T)
-databuncpDallas<-rbind(databunDallas,AbundcpDallas)
-databuncpDallas<-databun[!apply(databun[,c("yi", "vi")], 1, anyNA),] 
-databuncpDallas$se<-sqrt(databuncpDallas$vi)
+databuncp %>% 
+  filter(!Author %in% c("Dallas et al.", "Santini et al.","Osocrio-Olivera et al"))->Abundcp_SDM
 ```
 
 ### Grand Mean effect size and significance 
 
 ```{r, warning=FALSE}
-abunmodelDallas <- brm(
-  yi | se(se, sigma = TRUE) ~ 1 + (1 | Author) + (1|Species),
-  data = databuncpDallas
+abunmodel_SDM <- brm(
+  yi | se(se, sigma = TRUE) ~ 1 + (1 | ID) + (1|Species),
+  data = Abundcp_SDM,seed = 13,
+  control = list(adapt_delta = 0.95)
 )
 ```
 
 ```{r}
-pp_check(abunmodelDallas)
-```
-
-```{r}
-plot(abunmodelDallas)
-```
-
-```{r}
-abunmodelDallas %>% Ftable(percent = T)
+abunmodel_SDM %>% Ftable(percent = T)
 ```
 
 ```{r,eval=FALSE}
 # Average effect
-out_f <- spread_draws(abunmodelDallas, b_Intercept) %>% 
+out_f_SDM <- spread_draws(abunmodel_SDM, b_Intercept) %>% 
   mutate(study = "Abundance")
 # Data frame of summary numbers
-out_all_sum <- group_by(out_f, study) %>% 
+out_all_sum_SDM <- group_by(out_f_SDM, study) %>% 
   mean_qi(b_Intercept)
+```
+
+```{r}
 # Draw plot
-Fig1Dallas<-out_f %>%   
+pdf("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Figure/Figure_SDM.pdf", width = 6, height = 4)
+(Fig1SDM<-out_f_SDM %>%   
   ggplot(aes(b_Intercept, study,fill = after_stat(x < 0))) +
   labs(x = "Effect size", y = '')+
+  xlim(-0.5,1.8)+
   # Zero!
   geom_vline(xintercept = 0, linewidth = .25, lty = 2) +
-  stat_halfeye() +
+  stat_halfeye(.width = c(.95)) +
   scale_fill_manual(values = c("#FFC34D", "#999999"))+
   # Add text labels
   geom_text(
-    data = mutate_if(out_all_sum, is.numeric, round, 2),
-    aes(label = str_glue("{b_Intercept} [{.lower}, {.upper}]"), x =1),
+    data = mutate_if(out_all_sum_SDM, is.numeric, round, 2),
+    aes(label = str_glue("{b_Intercept} [{.lower}, {.upper}]"), x =1.5),
     hjust = "inward"
   ) +
-  theme
+  my_theme)
+dev.off()
 ```
 
 ### Predictive check for all the models (abundance, population growth rate, population abundance)
+```{r}
+multiplot <- function(..., plotlist=NULL, cols=1) {
+  require(grid)
+  plots <- c(list(...), plotlist)
+  numPlots = length(plots)
+  
+  layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                   ncol = cols, nrow = ceiling(numPlots/cols))
+  
+  if (numPlots==1) {
+    print(plots[[1]])
+  } else {
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+    for (i in 1:numPlots) {
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+
+```
 
 ```{r}
-library(scater)
 # print figure
-pdf("C:/Users/jm200/Documents/output/Figures/PPC.pdf",useDingbats = F,height=7,width=6)
+pdf("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Figure/PPC.pdf",useDingbats = F,height=6,width=6)
 multiplot(ppc_growthrate,ppc_genetic,
-          ppc_abundance,cols=1)
+          ppc_abundance,cols=2)
 dev.off()
 ```
 
@@ -598,21 +824,21 @@ out_Lambda <- spread_draws(Lambdamodel, b_Intercept) %>%
 out_all_sum_lambda <- group_by(out_Lambda, study) %>% 
   mean_qi(b_Intercept)
 # Draw plot
-Fig1a<-out_Lambda %>%   
-  ggplot(aes(x=b_Intercept, y=study,fill = after_stat(x < 0))) +
-  labs(x = "", y = '')+
-  xlim(-2,2)+
-  # Zero!
+Fig1a <- out_Lambda %>%
+  ggplot(aes(x = b_Intercept, y = study, fill = after_stat(x < 0))) +
+  labs(x = "", y = "") +
+  xlim(-3, 2) +
   geom_vline(xintercept = 0, linewidth = .25, lty = 2) +
   stat_halfeye(.width = c(.95)) +
-  scale_fill_manual(values = c("#FFC34D", "grey80"))+
-  # Add text labels
+  scale_fill_manual(values = c("#FFC34D", "#999999")) +
   geom_text(
     data = mutate_if(out_all_sum_lambda, is.numeric, round, 2),
-    aes(label = str_glue("{b_Intercept} [{.lower}, {.upper}]"), x =-2.,y=1.05),
+    aes(label = str_glue("{b_Intercept} [{.lower}, {.upper}]"),
+        x = -2., y = 1.05),
     hjust = "inward"
   ) +
-  theme
+  my_theme
+
 ```
 
 ```{r}
@@ -637,7 +863,7 @@ Fig1b<-out_f_gen %>%
     aes(label = str_glue("{b_Intercept} [{.lower}, {.upper}]"), x =-1.6),
     hjust = "inward"
   ) +
-  theme
+  my_theme
   
 ```
 
@@ -656,7 +882,7 @@ Fig1c<-out_f_abun %>%
   xlim(-2,2)+
   # Zero!
   geom_vline(xintercept = 0, linewidth = .25, lty = 2) +
-  stat_halfeye() +
+  stat_halfeye(.width = c(.95)) +
   scale_fill_manual(values = c("#FFC34D", "#999999"))+
   # Add text labels
   geom_text(
@@ -664,34 +890,28 @@ Fig1c<-out_f_abun %>%
     aes(label = str_glue("{b_Intercept} [{.lower}, {.upper}]"), x =-1.6),
     hjust = "inward"
   ) +
-  theme
+  my_theme
 ```
 
 ```{r}
 out_all <- bind_rows(out_Lambda,out_f_abun, out_f_gen) 
 out_all_sum <-bind_rows(out_all_sum_lambda, out_all_sum_abun,out_all_sum_gen) 
-pdf("D:/Figures/Figure1.pdf", width = 6, height = 4)
+pdf("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Figure/Figure1.pdf", width = 6, height = 5)
 (Figure1<-out_all %>%   
   ggplot(aes(b_Intercept, study,fill = after_stat(x < 0))) +
   labs(x = "Effect size", y = '')+
-  xlim(-1.8,2)+
+  xlim(-1.8,1.8)+
   # Zero!
   geom_vline(xintercept = 0, linewidth = .25, lty = 2) +
-  stat_halfeye() +
+  stat_halfeye(.width = c(.95)) +
   scale_fill_manual(values = c("#FFC34D", "#999999"))+
   # Add text labels
   geom_text(size = 3,
     data = mutate_if(out_all_sum, is.numeric, round, 2),
     aes(label = str_glue("{b_Intercept} [{.lower}, {.upper}]"), x =-1.5),
     hjust = "inward"
-  ) +
-  annotate(geom="text", x=1.5, y=1, label="n=3812",size = 3,
-              color="black")+
-  annotate(geom="text", x=1.5, y=2, label="n=47",size = 3,
-              color="black")+
-  annotate(geom="text", x=1.5, y=3, label="n=16",size = 3,
-              color="black")+
-  theme)
+  )+
+  my_theme)
 dev.off()
 ```
 
@@ -699,39 +919,46 @@ dev.off()
 ## Population growth rate 
 
 ```{r}
-fittedlambda <- fitted(Lambdamodel, dathlambda)
-dathlambda$meta_resid <- dathlambda$yi  - fittedlambda[,1]
-dathlambda <- dathlambda %>% 
+fittedlambda <- fitted(
+  Lambdamodel,
+  newdata = datlambda,
+  allow_new_levels = TRUE
+)
+datlambda$meta_resid <- datlambda$yi  - fittedlambda[,1]
+datlambda <- datlambda %>% 
   mutate(p_i = 1/se,
          o_i = meta_resid * p_i)
-rm(fittedlambda)
+# rm(fittedlambda)
 ```
 
 egger's regression
 ```{r, eval =F}
-m_egg_lambda <- brm(data = dathlambda, o_i ~ p_i, control = list(adapt_delta = 0.999), cores = 4)
+m_egg_lambda <- brm(data = datlambda, o_i ~ p_i, control = list(adapt_delta = 0.999), cores = 4)
 ```
 
 ```{r}
-m_egg_lambda %>% Ftable
+summary(m_egg_lambda)
 ```
 
 effect size ~ year
 ```{r, eval =F}
-m_year_lambda <- update(Lambdamodel, .~. + Year, newdata = dathlambda, cores = 4)
+m_year_lambda <- update(Lambdamodel, .~. + Year, newdata = datlambda, cores = 4)
 ```
 
 ```{r}
-m_year_lambda %>% Ftable
+summary(m_year_lambda)
 ```
 
 ```{r}
-CorMatrixLambda<-vcv(lambdaphy, corr=TRUE)
-Lambdamodelpb <- rma.mv(yi = yi , V = vi, method = "REML", 
-                   test="t", dfs="contain",
-                   random=list(~1|Author,  ~1|Species), 
-             R=list(full_sp=CorMatrixLambda), data = dathlambda)
-
+Lambdamodel_rm <- rma.mv(
+  yi = yi,
+  V = vi,
+  method = "REML",
+  test = "t",
+  dfs = "contain",
+  random = list(~1 | ID, ~1 | Species),
+  data = datlambda
+)
 ```
 
 ## Population genetic
@@ -744,17 +971,13 @@ datgencp <- datgencp %>%
          o_i = meta_resid * p_i)
 ```
 
-```{r}
-rm(fitted_gen)
-```
-
 egger's regression
 ```{r, eval =F}
 m_egg_gen <- brm(data = datgencp, o_i ~ p_i, control = list(adapt_delta = 0.999), cores = 4)
 ```
 
 ```{r}
-m_egg_gen %>% Ftable
+summary(m_egg_gen)
 ```
 
 effect size ~ year
@@ -763,13 +986,13 @@ m_year_gen <- update(genamodel, .~. + Year, newdata = datgencp, cores = 4)
 ```
 
 ```{r}
-m_year_gen %>% Ftable
+summary(m_year_gen)
 ```
 
 ```{r}
 genamodelpb <- rma.mv(yi = yi , V = vi, method = "REML", 
                    test="t", dfs="contain",
-                   random=list(~1|Author,  ~1|Species),  data = datgencp)
+                   random=list(~1|ID,  ~1|Species),  data = datgencp)
 ```
 
 ## Population abundance
@@ -780,7 +1003,7 @@ databuncp$meta_resid <- databuncp$yi  - fitted_abun[,1]
 databuncp <- databuncp %>% 
   mutate(p_i = 1/se,
          o_i = meta_resid * p_i)
-rm(fitted_abun)
+#rm(fitted_abun)
 ```
 
 egger's regression
@@ -789,79 +1012,129 @@ m_egg_abun <- brm(data =databuncp, o_i ~ p_i, cores = 4)
 ```
 
 ```{r}
-m_egg_abun %>% Ftable
+summary(m_egg_abun)
 ```
 
 effect size ~ year
 ```{r, eval =F}
 m_year_abun <- update(abunmodel, .~. + Year, newdata = databuncp, cores = 4)
 ```
+
 ```{r}
-m_year_abun %>% Ftable
+summary(m_year_abun)
 ```
 
 ```{r}
 abunmodelpb <- rma.mv(yi = yi , V = vi, method = "REML", 
                    test="t", dfs="contain",
-                   random=list(~1|Author,  ~1|Species),  data = databuncp)
+                   random=list(~1|ID,  ~1|Species),  data = databuncp)
+
+```
+
+```{r}
+# Population growth rate
+fitted_pop <- fitted(m_year_lambda, newdata = datlambda, re_formula = NA)
+datlambda$pred <- fitted_pop[, "Estimate"]
+datlambda$pred_lwr <- fitted_pop[, "Q2.5"]
+datlambda$pred_upr <- fitted_pop[, "Q97.5"]
+
+# Genetic diversity
+fitted_gen <- fitted(m_year_gen, newdata = datgencp, re_formula = NA)
+datgencp$pred <- fitted_gen[, "Estimate"]
+datgencp$pred_lwr <- fitted_gen[, "Q2.5"]
+datgencp$pred_upr <- fitted_gen[, "Q97.5"]
+
+# Population abundance
+fitted_abun <- fitted(m_year_abun, newdata = databuncp, re_formula = NA)
+databuncp$pred <- fitted_abun[, "Estimate"]
+databuncp$pred_lwr <- fitted_abun[, "Q2.5"]
+databuncp$pred_upr <- fitted_abun[, "Q97.5"]
 
 ```
 
 ## Put all the funnels plot together
+
 ```{r}
-pdf("/Users/jm200/Library/CloudStorage/Dropbox/Manuscript/Figures/Figure2.pdf", width = 7, height = 4)
-par(mfrow=c(1,3))
-a <- funnel(Lambdamodelpb, 
-       yaxis="seinv", # Inverse of standard error (precision) as the y axis
-       level = c(90, 95, 99),  # levels of statistical significance highlighted 
-       shade = c("white", "gray55", "gray75"), 
-       ylab="Precision (1/SE)",
-       xlab= "Population growth rate",
-       cex.lab=1.2, 
-       col="orange2",
-        back="white",
-       digits=1, 
-       xlim=c(-4,4), 
-       ylim=c(0.01,75))
+# Layout: 3 top trend panels (larger), 3 bottom funnel plots
+pdf("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Figure/Figure2.pdf", width = 9, height = 6)
+layout_matrix <- matrix(c(1,2,3,
+                          4,5,6), nrow=2, byrow=TRUE)
+layout(layout_matrix, heights=c(1,1))  # top row taller
 
-b <- funnel(genamodelpb, 
-       yaxis="seinv", # Inverse of standard error (precision) as the y axis
-       level = c(90, 95, 99),  # levels of statistical significance highlighted 
-       shade = c("white", "gray55", "gray75"), 
-       ylab="",
-       xlab="Genetic diversity",
-       cex.lab=1.2, 
-       col="orange2",
-       back="white",
-       digits=1, 
-       xlim=c(-4,4), 
-       ylim=c(0.01,75))
+par(mar=c(5,4,2,2),family="Helvetica")
+# Panel 1: Genetic diversity trend
+datgencp <- datgencp[order(datgencp$Year), ]
+ylim_range <- range(c(datgencp$yi, datgencp$pred_lwr, datgencp$pred_upr))
+plot(datgencp$Year, datgencp$yi, 
+     pch=19, col=adjustcolor("orange2", alpha.f=0.4),
+     xlab="Year", ylab="Genetic diversity effect size",
+     main="", xlim=c(min(datgencp$Year), max(datgencp$Year)), ylim=c(-5,5))
+lines(datgencp$Year, datgencp$pred, col="orange2", lwd=3)
+polygon(c(datgencp$Year, rev(datgencp$Year)),
+        c(datgencp$pred_lwr, rev(datgencp$pred_upr)),
+        col=adjustcolor("orange2", alpha.f=0.2), border=NA)
+mtext("a", side=3, line=0.5, at=min(datgencp$Year), cex=1.2, font=1)
 
-c <- funnel(abunmodelpb, 
-       yaxis="seinv", # Inverse of standard error (precision) as the y axis
-       level = c(90, 95, 99),  # levels of statistical significance highlighted 
-       shade = c("white", "gray55", "gray75"), 
-       ylab="",
-       xlab="Population abundance",
-       col="orange2",
-       back="white",
-       cex.lab=1.2, 
-       digits=1, 
-       xlim=c(-4,4), 
-       ylim=c(0.01,75))
+# Panel 2: Population abundance trend
+databuncp <- databuncp[order(databuncp$Year), ]
+#ylim_range <- range(c(databuncp$yi, databuncp$pred_lwr, databuncp$pred_upr))
+plot(databuncp$Year, databuncp$yi, 
+     pch=19, col=adjustcolor("orange2", alpha.f=0.4),
+     xlab="Year", ylab="Population abundance effect size",
+     main="", xlim=c(min(databuncp$Year), max(databuncp$Year)), ylim=c(-2,2))
+# lines(databuncp$Year, databuncp$pred, col="orange2", lwd=3)
+# polygon(c(databuncp$Year, rev(databuncp$Year)),
+#         c(databuncp$pred_lwr, rev(databuncp$pred_upr)),
+#         col=adjustcolor("orange2", alpha.f=0.2), border=NA)
+mtext("b", side=3, line=0.5, at=min(databuncp$Year), cex=1.2, font=1)
+# Panel 3: Lambda trend
+datlambda <- datlambda[order(datlambda$Year), ]
+ylim_range <- range(c(datlambda$yi, datlambda$pred_lwr, datlambda$pred_upr))
+plot(datlambda$Year, datlambda$yi, 
+     pch=19, col=adjustcolor("orange2", alpha.f=0.4),
+     xlab="Year", ylab="Population growth rate effect size",
+     main="", xlim=c(min(datlambda$Year), max(datlambda$Year)), ylim=c(-5,5))
+# lines(dathlambda$Year, dathlambda$pred, col="orange2", lwd=3)
+# polygon(c(dathlambda$Year, rev(dathlambda$Year)),
+#         c(dathlambda$pred_lwr, rev(dathlambda$pred_upr)),
+#         col=adjustcolor("orange2", alpha.f=0.4), border=NA)
+mtext("c", side=3, line=0.5, at=min(datlambda$Year), cex=1.2, font=1)
+# Bottom row: funnel plots
+funnel(Lambdamodel_rm, yaxis="seinv", level=c(90,95,99),
+       shade=c("white","gray55","gray75"), ylab="Precision (1/SE)",
+       xlab="Population growth rate", cex.lab=1.2, col="orange2",
+       back="white", digits=1, xlim=c(-4,4), ylim=c(0.01,75))
+mtext("d", side=3, line=0.5, at=-4, cex=1.2, font=1)
+box()
 
+funnel(genamodelpb, yaxis="seinv", level=c(90,95,99),
+       shade=c("white","gray55","gray75"), ylab="", xlab="Genetic diversity",
+       cex.lab=1.2, col=adjustcolor("orange2", alpha.f=0.4), back="white", digits=1, xlim=c(-4,4), ylim=c(0.01,75))
+mtext("e", side=3, line=0.5, at=-4, cex=1.2, font=1)
+box()
+
+funnel(abunmodelpb, yaxis="seinv", level=c(90,95,99),
+       shade=c("white","gray55","gray75"), ylab="", xlab="Population abundance",
+       cex.lab=1.2, col=adjustcolor("orange2", alpha.f=0.4), back="white", digits=1, xlim=c(-4,4), ylim=c(0.01,75))
+mtext("f", side=3, line=0.5, at=-4, cex=1.2, font=1)
+box()
 dev.off()
 ```
 
 # To what extent can heterogeneity among studies be explained by hypothesized moderators that characterize study outcomes?
 
 ## Kingdom
+```{r}
+datgencp %>%
+  group_by(Kingdom) %>%
+  summarize(n_species = n_distinct(Species))
+```
 
 ### Genetic diversity
 
 ```{r}
 Kingdomg.model <- brms::brm(
-  yi|se(se, sigma = TRUE) ~ (Kingdom-1) + (1|Author) + (1|Species),
+  yi|se(se, sigma = TRUE) ~ (Kingdom-1) + (1|ID) + (1|Species),
   data = datgencp,
   family = gaussian(),
   prior = c(
@@ -893,10 +1166,24 @@ smd.ecdf_kg_pl(0)
 ```
 
 ### Population abundance
+```{r}
+# Total number of species
+total_species <- databuncp %>% 
+  summarize(n_species = n_distinct(Species))
+
+# Number of species per kingdom
+species_by_kingdom <- databuncp %>%
+  group_by(Kingdom) %>%
+  summarize(n_species = n_distinct(Species))
+
+total_species
+species_by_kingdom
+
+```
 
 ```{r}
 Kingdomab.model <- brms::brm(
-  yi|se(se, sigma = TRUE) ~ (Kingdom-1) + (1|Author) + (1|Species),
+  yi|se(se, sigma = TRUE) ~ (Kingdom-1) + (1|ID) + (1|Species),
   data = databuncp,
   family = gaussian(),
   prior = c(
@@ -950,31 +1237,31 @@ out_all_sumk <-bind_rows(out_all_sum_kg,out_all_sum_ka)
 Figure3a<-out_allk %>%   
   ggplot(aes(Kingdom, study,fill = after_stat(x < 0))) +
   labs(x = "Effect size (genetic diversity)", y = '')+
-  xlim(-3.5,3.5)+
+  xlim(-1.75,1.75)+
   # Zero!
   geom_vline(xintercept = 0, linewidth = .25, lty = 2) +
-  stat_halfeye() +
-   scale_fill_manual(values = c("#6d2f80", "#999999"))+
+  stat_halfeye(.width = c(0.95, 0.95)) +
+   scale_fill_manual(values = c("#F0E442", "#999999"))+
   # Add text labels
   geom_text(size = 2.8,
     data = mutate_if(out_all_sumk, is.numeric, round, 2),
-    aes(label = str_glue("{Kingdom} [{.lower}, {.upper}]"), x =-3.4),
+    aes(label = str_glue("{Kingdom} [{.lower}, {.upper}]"), x =-1.5),
     hjust = "inward"
   ) +
-  annotate("text", x =-3,y=2.5, label = "a", color = "black",  size = 5) +
-  annotate(geom="text", x=2.5, y=1, label="n=10",size = 3,
-              color="black")+
-  annotate(geom="text", x=2.5, y=2, label="n=37",size = 3,
-              color="black")+
+  #annotate("text", x =-1.5,y=2.5, label = "a", color = "black",  size = 5) +
+  # annotate(geom="text", x=1.7, y=1, label="n=11",size = 3,
+  #             color="black")+
+  # annotate(geom="text", x=1.7, y=2, label="n=41",size = 3,
+  #             color="black")+
   theme(panel.border = element_rect(fill = NA),
-             text = element_text(size = 10), # change font sizes
+             text = element_text(size = 12), # change font sizes
                  legend.position = "none",
                  legend.title = element_text(size = 8),
                  legend.text = element_text(size = 8),
                  legend.background = element_blank(),
                  panel.background = element_rect(fill="transparent"), 
-                 axis.text.x = element_text(size = 10, colour = "black"),
-                 axis.text.y = element_text(size = 10, colour = "black", hjust = 0.5, angle = 0))
+                 axis.text.x = element_text(size = 12, colour = "black"),
+                 axis.text.y = element_text(size = 12, colour = "black", hjust = 0.5, angle = 0))
 ```
 
 ```{r}
@@ -997,487 +1284,58 @@ out_all_sumkab <-bind_rows(out_all_sum_kaa,out_all_sum_kap)
 
 Figure3b<-out_allkab %>%   
   ggplot(aes(Kingdom, study,fill = after_stat(x < 0))) +
-  labs(x = "Effect size (Population abundance)", y = "")+
-  xlim(-3.5,3.5)+
+  labs(x = "Effect size (abundance)", y = "")+
+  xlim(-1.2,1.2)+
   # Zero!
   geom_vline(xintercept = 0, linewidth = .25, lty = 2) +
-  stat_halfeye() +
-   scale_fill_manual(values = c("#6d2f80", "#999999"))+
-  # Add text labels
+  stat_halfeye(.width = c(0.95, 0.95)) +
+   scale_fill_manual(values = c("#F0E442", "#999999"))+
+  #Add text labels
   geom_text(size = 2.8,
     data = mutate_if(out_all_sumkab, is.numeric, round, 2),
-    aes(label = str_glue("{Kingdom} [{.lower}, {.upper}]"), x =-3.4),
+    aes(label = str_glue("{Kingdom} [{.lower}, {.upper}]"), x =-1),
     hjust = "inward"
   ) +
-  annotate("text", x =-3,y=2.5, label = "b", color = "black",  size = 5) +
-  annotate(geom="text", x=2.5, y=1, label="n=337",size = 3,
-              color="black")+
-  annotate(geom="text", x=2.5, y=2, label="n=3475",size = 3,
-              color="black")+
+  #annotate("text", x =-1,y=2.5, label = "b", color = "black",  size = 5) +
+  # annotate(geom="text", x=1.1, y=1, label="n=337",size = 3,
+  #             color="black")+
+  # annotate(geom="text", x=1.1, y=2, label="n=3475",size = 3,
+  #             color="black")+
   theme(panel.border = element_rect( fill=NA),
-             text = element_text(size = 10), # change font sizes
+             text = element_text(size = 12), # change font sizes
                  legend.position = "none",
                  legend.title = element_text(size = 8),
                  legend.text = element_text(size = 8),
                  legend.background = element_blank(),
                  panel.background = element_rect(fill="transparent"), 
-                 axis.text.x = element_text(size = 10, colour = "black"),
-                 axis.text.y = element_text(size = 10, colour = "white", hjust = 0.5, angle = 90))
+                 axis.text.x = element_text(size = 12, colour = "black"),
+                 axis.text.y = element_text(size = 12, colour = "black"))
 ```
 
 ```{r}
-pdf("D:/Figures/Figure3.pdf", width = 7, height = 4)
-(Figure3 <- ggarrange(Figure3a,Figure3b))
+pdf("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Figure/Figure3.pdf",
+    width = 9, height = 4)
+
+# Assign ggarrange to Figure3
+Figure3 <- ggarrange(Figure3a, Figure3b,
+                     ncol = 2, nrow = 1,
+                     heights = c(1,1),        # equal height for vertical layout
+                     align = "v",             # vertical alignment
+                     labels = c("a","b"),     # add panel labels
+                     label.x = 0.09,             # shift labels outside left
+                     label.y = 1.02,          # above panel
+                     font.label = list(size = 16, face = "plain"))  # face inside font.label
+
+# Print the figure
+Figure3
+
 dev.off()
 ```
-
-## Lifespan
-### Cleaning the  species traits  [life span] (https://genomics.senescence.info/species/index.html)
-
-```{r}
-datage<-read.csv("D:/Data/anage_data.csv", header=T)
-datage$Species<-paste0(as.character(datage$genus)," ", as.character(datage$species))
-datageclean <- datage%>% filter (dataquality %in% c("low","acceptable","high"))
-#names(datbodymass)
-```
-
-
-```{r}
-databuncp %>%
-  filter(Kingdom == "Animal")->databa
-databuncpLS<-left_join(x=databa,y=datageclean,by="Species")
-databuncpLS <- databuncpLS[!apply(databuncpLS[,c("maximumlongevity", "yi")], 1, anyNA),] 
-```
-
-```{r,eval=FALSE}
-sp.aba <- databuncpLS[, 4]
-spnamesaba <- as.character(sp.aba)
-# species2 <- unique(spnamesaba)
-species2 <- spnamesaba
-#length(species2)
-# species2 <- gsub("\n", "", species1)
-temp <-taxize::gnr_resolve(species2, best_match_only = TRUE, canonical = TRUE)
-dat_aba <- merge(data.frame(species2), temp[,c("user_supplied_name", "matched_name2")],
-                 by.x = "species2", by.y = "user_supplied_name", all.x = TRUE)
-spnamesaba <-dat_aba[,2]
-# spnamesaba <- spnamesabp[complete.cases(spnamesaba)]
-# length(spnamesaba)
-# Retrieve classifications
-spnamesabaf <- classification(spnamesaba, db = "ncbi")
-resolved_names_aba <- unique(spnamesabaf)
-# Building a phylogenetic tree
-abatree <- class2tree(resolved_names_aba)
-# str(abptree)
-(abaphy <- abatree$phylo)
-# length(abaphy$edge.length)
-```
-
-```{r}
-speciesabuna<-data.frame(Species=abaphy$tip.label)
-abunadat<- merge(x = speciesabuna, y = databuncpLS,all.x = TRUE)
-abunadat<-abunadat[complete.cases(abunadat), ]
-abunacleanTree<-drop.tip(abaphy, abaphy$tip.label[-na.omit(match(abunadat$Species, abaphy$tip.label))])
-A<-ape::vcv.phylo(abunacleanTree) # Creates variance-covariance matrix from tree
-```
-
-```{r}
-Lifespan.abunmodel <- brms::brm(
-  yi|se(se, sigma = TRUE) ~ scale(maximumlongevity) + (1|Author) + (1|gr(Species, cov = A)),
-  data = abunadat,
-  family = gaussian(),
-  data2 = list(A = A),
-  prior = c(
-    prior(normal(0, 1), "b"),
-    prior(normal(0, 0.5), "Intercept"),
-    prior(student_t(3, 0, 0.2), "sd"),
-    prior(student_t(3, 0, 0.2), "sigma")
-  ),
-  iter = 5000, cores = 4
-)
-  
-```
-
-```{r}
-summary(Lifespan.abunmodel)
-```
-
-```{r}
-pdf("D:/Figures/Figure4.pdf", width = 5, height = 4)
-(Figure4 <- ggplot(databuncpLS, aes(
-  x = maximumlongevity, y = yi
-)) +
-  geom_point(aes(colour="orange2"),data =databuncpLS,size=3) +
-  geom_hline(yintercept = 0, linetype="dashed",color = "black", size=0.5)+
-  scale_y_continuous(limits = c(-2, 2))+
-  annotate("text",size = 2.8,label="-0.00 [-0.01,0.01]", x =60,y=-1) +
-  annotate("text", x = 60, y = -1.2, label = "n=1853", color = "black",  size = 3) +
-  labs(x = "Longetivity (year)", y = "Effect size") +
-  theme(panel.border = element_rect( fill=NA),
-             text = element_text(size = 10), # change font sizes
-                 legend.position = "none",
-                 legend.title = element_text(size = 8),
-                 legend.text = element_text(size = 8),
-                 legend.background = element_blank(),
-                 panel.background = element_rect(fill="transparent"), 
-                 axis.text.x = element_text(size = 10, colour = "black"),
-                 axis.text.y = element_text(size = 10, colour = "black", hjust = 0.5, angle = 90)))
-dev.off()
-```
-
-## Pollination mode
-### Pollination and population growth rate
-```{r}
-Pollinationdata <- read.csv("D:/Data/Pollinationinfo.csv", header = T)
-Pollinationdata$Pollination <- gsub(" ", "",Pollinationdata$Pollination)
-datlambdaPl<-left_join(x=datlambda,y=Pollinationdata,by="Species")
-datlambdaPl <- datlambdaPl[!apply(datlambdaPl[,c("Pollination", "vi")], 1, anyNA),] 
-```
-
-```{r}
-sp.lambdaplant <- datlambdaPl[, 4]
-spnamesplant <- as.character(sp.lambdaplant)
-# Retrieve classifications
-resolved_namesp <- classification(spnamesplant, db = "ncbi")
-resolved_namesp <- unique(resolved_namesp)
-# lapply(resolved_namesp, head)
-# Building a phylogenetic tree
-lambtree <- class2tree(resolved_namesp)
-#str(gentree)
-(lambtreephy <- lambtree$phylo)
-```
-
-```{r}
-spnamesplant<-data.frame(Species=lambtreephy$tip.label)
-podypdat<- merge(x = spnamesplant, y = datlambdaPl,all.x = TRUE)
-podypdat<-podypdat[complete.cases(podypdat), ]
-lambdcleanTree<-drop.tip(lambtreephy, lambtreephy$tip.label[-na.omit(match(lambtreephy$Species, lambtreephy$tip.label))])
-A<-ape::vcv.phylo(lambdcleanTree) # Creates variance-covariance matrix from tree
-```
-
-```{r}
-Pollination.lambmodel <- brms::brm(
-  yi|se(se, sigma = TRUE) ~ (Pollination-1) + (1|Author) + (1|gr(Species, cov = A)),
-  data = datlambdaPl,
-  family = gaussian(),
-  data2 = list(A = A),
-  prior = c(
-    prior(normal(0, 1), "b"),
-    prior(student_t(3, 0, 5), "sd"),
-    prior(student_t(3, 0, 5), "sigma")
-  ),
-  control = list(adapt_delta = 0.9999, max_treedepth = 15),
-                   iter = 5000, cores = 4
-)
-  
-```
-
-```{r}
-summary(Pollination.lambmodel)
-```
-
-#### empirical cumulative distribution function
-```{r}
-get_variables(Pollination.lambmodel)
-post.samples_p_lambda <- posterior_samples(Pollination.lambmodel, pars=c("b_Pollinationout","b_Pollinationself"))
-mean(post.samples_p_lambda$b_Pollinationout>0)
-mean(post.samples_p_lambda$b_Pollinationself>0)
-smd.ecdf_p_lambda_out <- ecdf(post.samples_p_lambda$b_Pollinationout)
-smd.ecdf_p_lambda_self <- ecdf(post.samples_p_lambda$b_Pollinationself)
-smd.ecdf_p_lambda_out(0)
-smd.ecdf_p_lambda_self(0)
-```
-
-### Pollination and abundance
-```{r}
-databuncp %>%
-  filter(Kingdom == "Plant")->databp
-databuncpPl<-left_join(x=databp,y=Pollinationdata,by="Species")
-databuncpPl$Pollination <- gsub("Self", "self",databuncpPl$Pollination)
-# unique(databuncpPl$Pollination)
-databuncpPl <- databuncpPl[!apply(databuncpPl[,c("Pollination", "vi")], 1, anyNA),] 
-```
-
-```{r,eval=FALSE}
-sp.abp <- databuncpPl[, 4]
-spnamesabp <- as.character(sp.abp)
-species2 <- spnamesabp
-#length(species2)
-# species2 <- gsub("\n", "", species1)
-temp <-taxize::gnr_resolve(species2, best_match_only = TRUE, canonical = TRUE)
-dat_abp <- merge(data.frame(species2), temp[,c("user_supplied_name", "matched_name2")], 
-               by.x = "species2", by.y = "user_supplied_name", all.x = TRUE)
-spnamesabp <-dat_abp[,2]
-# spnamesabp <- spnamesabp[complete.cases(spnamesabp)]
-# length(spnamesabp)
-# Retrieve classifications
-spnamesabpf <- classification(spnamesabp, db = "ncbi")
-resolved_names_abp <- unique(spnamesabpf)
-# Building a phylogenetic tree
-abptree <- class2tree(resolved_names_abp)
-# str(abptree)
-(abpphy <- abptree$phylo)
-# length(abpphy$edge.length)
-```
-
-```{r}
-speciesabunp<-data.frame(Species=abpphy$tip.label)
-abunpdat<- merge(x = speciesabunp, y = databuncpPl,all.x = TRUE)
-abunpdat<-abunpdat[complete.cases(abunpdat), ]
-abunpcleanTree<-drop.tip(abpphy, abpphy$tip.label[-na.omit(match(abunpdat$Species, abpphy$tip.label))])
-A<-ape::vcv.phylo(abunpcleanTree) # Creates variance-covariance matrix from tree
-```
-
-```{r}
-Pollination.abunmodel <- brms::brm(
-  yi|se(se, sigma = TRUE) ~ (Pollination-1) + (1|Author) + (1|gr(Species, cov = A)),
-  data = abunpdat,
-  family = gaussian(),
-  data2 = list(A = A),
-  prior = c(
-    prior(normal(0, 1), "b"),
-    prior(student_t(3, 0, 1.5), "sd"),
-    prior(student_t(3, 0, 1.5), "sigma")
-  ), 
-  control = list(adapt_delta = 0.9999, max_treedepth = 15),iter = 5000, cores = 4
-)
-```
-
-```{r}
-summary(Pollination.abunmodel)
-```
-
-#### empirical cumulative distribution function
-```{r}
-get_variables(Pollination.abunmodel)
-post.samples_p_ab <- posterior_samples(Pollination.abunmodel, pars=c("b_Pollinationout","b_Pollinationself"))
-mean(post.samples_p_ab$b_Pollinationout>0)
-mean(post.samples_p_ab$b_Pollinationself>0)
-smd.ecdf_p_ab_out <- ecdf(post.samples_p_ab$b_Pollinationout)
-smd.ecdf_p_ab_self <- ecdf(post.samples_p_ab$b_Pollinationself)
-smd.ecdf_p_ab_out(0)
-smd.ecdf_p_ab_self(0)
-```
-
-### Pollination and genetic diversity 
-```{r}
-datgencp %>% 
-  filter(Kingdom == "Plant")->datgenp
-gencpPL<-left_join(x =datgenp, y =Pollinationdata ,by="Species")
-```
-
-```{r,eval=FALSE}
-sp.genp <- gencpPL[, 4]
-spnamesp <- as.character(sp.genp)
-# Retrieve classifications
-resolved_namesp <- classification(spnamesp, db = "ncbi")
-resolved_namesp <- unique(resolved_namesp)
-# lapply(resolved_namesp, head)
-# Building a phylogenetic tree
-genptree <- class2tree(resolved_namesp)
-#str(gentree)
-(genpphy <- genptree$phylo)
-# plot(genpphy)
-```
-
-```{r}
-speciesgen<-data.frame(Species=genpphy$tip.label)
-genpdat<- merge(x = speciesgen, y = gencpPL,all.x = TRUE)
-genpdat<-genpdat[complete.cases(genpdat), ]
-genpcleanTree<-drop.tip(genpphy, genpphy$tip.label[-na.omit(match(genpdat$Species, genpphy$tip.label))])
-A<-ape::vcv.phylo(genpcleanTree) # Creates variance-covariance matrix from tree
-```
-
-```{r}
-set.seed(13)
-Pollination.genmodel <- brms::brm(
-  yi|se(se, sigma = TRUE) ~ (Pollination-1) + (1|Author) + (1|gr(Species, cov = A)),
-  data = genpdat,
-  family = gaussian(),
-  data2 = list(A = A),
-  prior = c(
-    prior(normal(0, 1), "b"),
-    prior(student_t(3, 0, 3), "sd"),
-    prior(student_t(3, 0, 3), "sigma")
-  ),
-  control = list(adapt_delta = 0.9999, max_treedepth = 15),
-                   iter = 5000, cores = 4
-)
-  
-```
-
-```{r}
-summary(Pollination.genmodel)
-```
-
-#### empirical cumulative distribution function
-```{r}
-get_variables(Pollination.genmodel)
-post.samples_p_gen <- posterior_samples(Pollination.genmodel, pars=c("b_Pollinationout","b_Pollinationself"))
-mean(post.samples_p_gen$b_Pollinationout>0)
-mean(post.samples_p_gen$b_Pollinationself>0)
-smd.ecdf_p_gen_out <- ecdf(post.samples_p_gen$b_Pollinationout)
-smd.ecdf_p_gen_self <- ecdf(post.samples_p_gen$b_Pollinationself)
-smd.ecdf_p_gen_out(0)
-smd.ecdf_p_gen_self(0)
-# We see that with 0.1791, the probability of our pooled effect being smaller than 0 for out 
-# We see that with 0.1979, the probability of our pooled effect being smaller than 0 for self 
-```
-
-### Plot Pollination and population growth rate, population genetic and population abundance
-
-```{r}
-out_f_pollambda1 <- spread_draws(Pollination.abunmodel, b_Pollinationout) %>% 
-  mutate(study = "Crossed\n pollinated") %>% 
-  dplyr::rename (Pollination=b_Pollinationout)
-# Data frame of summary numbers
-out_all_sum_pollambda1 <- group_by(out_f_pollambda1, study) %>% 
-  mean_qi(Pollination)
-
-
-
-out_f_pollambda2 <- spread_draws(Pollination.abunmodel, b_Pollinationself) %>% 
-  mutate(study = "Self\n pollinated") %>% 
-  dplyr::rename (Pollination=b_Pollinationself)
-# Data frame of summary numbers
-out_all_sum_pollambda2 <- group_by(out_f_pollambda2, study) %>% 
-  mean_qi(Pollination)
-
-out_allpol_lambda <- bind_rows(out_f_pollambda1, out_f_pollambda2) 
-out_all_sumpollmbda <-bind_rows(out_all_sum_pollambda1,out_all_sum_pollambda2) 
-
-Figure5a<-out_allpol_lambda %>%   
-  ggplot(aes(Pollination, study,fill = after_stat(x < 0))) +
-  labs(x = "Effect size (population growth rate)", y = '')+
-  xlim(-4,3.5)+
-  # Zero!
-  geom_vline(xintercept = 0, linewidth = .25, lty = 2) +
-  stat_halfeye() +
-  scale_fill_manual(values = c("#31688e", "#999999"))+
-  # Add text labels
-  geom_text(size = 2.8,
-    data = mutate_if(out_all_sumpollmbda, is.numeric, round, 2),
-    aes(label = str_glue("{Pollination} [{.lower}, {.upper}]"), x =-3.6),
-    hjust = "inward"
-  ) +
-  annotate("text", x =-3,y=2.5, label = "a", color = "black",  size = 5) +
-  annotate("text", x = 3,y=1, label = "n=12", color = "black",  size = 3) +
-  annotate("text", x =3,y=2, label = "n=4", color = "black",  size = 3) +
-  theme(panel.border = element_rect(fill = NA),
-             text = element_text(size = 10), # change font sizes
-                 legend.position = "none",
-                 legend.title = element_text(size = 8),
-                 legend.text = element_text(size = 8),
-                 legend.background = element_blank(),
-                 panel.background = element_rect(fill="transparent"), 
-                 axis.text.x = element_text(size = 10, colour = "black"),
-                 axis.text.y = element_text(size = 10, colour = "black", hjust = 0.5, angle = 0))
-```
-
-```{r}
-out_f_polgen1 <- spread_draws(Pollination.genmodel, b_Pollinationout) %>% 
-  mutate(study = "Crossed\n pollinated") %>% 
-  dplyr::rename (Pollination=b_Pollinationout)
-# Data frame of summary numbers
-out_all_sum_polgen1 <- group_by(out_f_polgen1, study) %>% 
-  mean_qi(Pollination)
-
-out_f_polgen2 <- spread_draws(Pollination.genmodel, b_Pollinationself) %>% 
-  mutate(study = "Self\n pollinated") %>% 
-  dplyr::rename (Pollination=b_Pollinationself)
-# Data frame of summary numbers
-out_all_sum_polgen2 <- group_by(out_f_polgen2, study) %>% 
-  mean_qi(Pollination)
-
-out_allpol_gen <- bind_rows(out_f_polgen1, out_f_polgen2) 
-out_all_sumpolgen <-bind_rows(out_all_sum_polgen1,out_all_sum_polgen2) 
-
-Figure5b<-out_allpol_gen %>%   
-  ggplot(aes(Pollination, study,fill = after_stat(x < 0))) +
-  labs(x = "Effect size (Genetic diversity)", y = "")+
-   xlim(-5,4)+
-  # Zero!
-  geom_vline(xintercept = 0, linewidth = .25, lty = 2) +
-  stat_halfeye() +
-  scale_fill_manual(values = c("#31688e", "#999999"))+
-  # Add text labels
-  geom_text(size = 2.8,
-    data = mutate_if(out_all_sumpolgen, is.numeric, round, 2),
-    aes(label = str_glue("{Pollination} [{.lower}, {.upper}]"), x =-4.9),
-    hjust = "inward"
-  ) +
-  annotate("text", label = "b", x =-4,y=2.5, size = 5)+
-  annotate("text", x = 3,y=1, label = "n=40", color = "black",  size = 3) +
-  annotate("text", x =3,y=2, label = "n=7", color = "black",  size = 3) +
-  theme(panel.border = element_rect( fill=NA),
-             text = element_text(size = 10), # change font sizes
-                 legend.position = "none",
-                 legend.title = element_text(size = 8),
-                 legend.text = element_text(size = 8),
-                 legend.background = element_blank(),
-                 panel.background = element_rect(fill="transparent"), 
-                 axis.text.x = element_text(size = 10, colour = "black"),
-                 axis.text.y = element_text(size = 10, colour = "white", hjust = 0.5, angle = 0))
-```
-
-
-```{r}
-out_f_polabun1 <- spread_draws(Pollination.abunmodel, b_Pollinationout) %>% 
-  mutate(study = "Crossed\n pollinated") %>% 
-  dplyr::rename (Pollination=b_Pollinationout)
-# Data frame of summary numbers
-out_all_sum_polabund1 <- group_by(out_f_polabun1, study) %>% 
-  mean_qi(Pollination)
-
-out_f_polabund2 <- spread_draws(Pollination.abunmodel, b_Pollinationself) %>% 
-  mutate(study = "Self\n pollinated") %>% 
-  dplyr::rename (Pollination=b_Pollinationself)
-# Data frame of summary numbers
-out_all_sum_polabun2 <- group_by(out_f_polabund2, study) %>% 
-  mean_qi(Pollination)
-
-out_allpol_abun <- bind_rows(out_f_polabun1, out_f_polabund2) 
-out_all_sumpolabun <-bind_rows(out_all_sum_polabund1,out_all_sum_polabun2) 
-
-Figure5c<-out_allpol_abun %>%   
-  ggplot(aes(Pollination, study,fill = after_stat(x < 0))) +
-  labs(x = "Effect size ( abundance)", y = '')+
-   xlim(-3,3)+
-  # Zero!
-  geom_vline(xintercept = 0, linewidth = .25, lty = 2) +
-  stat_halfeye() +
-   scale_fill_manual(values = c("#31688e", "#999999"))+
-  # Add text labels
-  geom_text(size = 2.8,
-    data = mutate_if(out_all_sumpolabun, is.numeric, round, 2),
-    aes(label = str_glue("{Pollination} [{.lower}, {.upper}]"), x =-2.5),
-    hjust = "inward"
-  ) +
-  annotate("text", label = "c", x =-2.5,y=2.5, size = 5)+
-  annotate("text", x = 2,y=1, label = "n=324", color = "black",  size = 3) +
-  annotate("text", x =2,y=2, label = "n=13", color = "black",  size = 3) +
-  theme(panel.border = element_rect(fill=NA),
-             text = element_text(size = 10), # change font sizes
-                 legend.position = "none",
-                 legend.title = element_text(size = 8),
-                 legend.text = element_text(size = 8),
-                 legend.background = element_blank(),
-                 panel.background = element_rect(fill="transparent"), 
-                 axis.text.x = element_text(size = 10, colour = "black"),
-                 axis.text.y = element_text(size = 10, colour = "black", hjust = 0.5, angle = 0))
-
-```
-
-```{r}
-pdf("D:/Figures/Figure5.pdf", width = 8, height = 6)
-(Figure3 <- ggarrange(Figure5a,Figure5b,Figure5c))
-dev.off()
-```
-
 
 ## Methods
 ```{r}
 Kingdomme.model <- brms::brm(
-  yi|se(se, sigma = TRUE) ~ (Method-1) + (1|Author) + (1|Species),
+  yi|se(se, sigma = TRUE) ~ (Method-1) + (1|ID) + (1|Species),
   data = databuncp,
   family = gaussian(),
   prior = c(
@@ -1516,12 +1374,10 @@ methohyp1<-hypothesis(Kingdomme.model,"MethodED-MethodGD=0")
 
 ```{r}
 methohyp2<-hypothesis(Kingdomme.model,"MethodMD-MethodGD=0")
-
 ```
 
 ```{r}
 methohyp2<-hypothesis(Kingdomme.model,"MethodMD-MethodED=0")
-
 ```
 
 ### Plot method and effect size 
@@ -1553,24 +1409,24 @@ out_all_sum_method <-bind_rows(out_all_gd,out_all_ed,out_all_md)
 ```
 
 ```{r}
-pdf("D:/Figures/Figure6.pdf", width = 6, height = 4)
+pdf("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Figure/Figure6.pdf", width = 6, height = 4)
 (Figure6<-out_all_method %>%   
   ggplot(aes(Method, study,fill = after_stat(x < 0))) +
   labs(x = "Effect size", y = '')+
   xlim(-1,1)+
   # Zero!
   geom_vline(xintercept = 0, linewidth = .25, lty = 2) +
-  stat_halfeye() +
+  stat_halfeye(.width = c(0.95, 0.95)) +
   scale_fill_manual(values = c("#F0E442", "#999999"))+
   # Add text labels
   geom_text(size = 2.8,
     data = mutate_if(out_all_sum_method, is.numeric, round, 2),
-    aes(label = str_glue("{Method} [{.lower}, {.upper}]"), x =-1),
+    aes(label = str_glue("{Method} [{.lower}, {.upper}]"), x =-0.85),
     hjust = "inward"
   ) +
-  annotate("text", x =0.8,y=1, label = "n=1822", color = "black",  size = 3) +
-  annotate("text", x =0.8,y=2, label = "n=1484", color = "black",  size = 3) +
-  annotate("text", x =0.8,y=3, label = "n=506", color = "black",  size = 3) +
+  # annotate("text", x =0.8,y=1, label = "n=1822", color = "black",  size = 3) +
+  # annotate("text", x =0.8,y=2, label = "n=1484", color = "black",  size = 3) +
+  # annotate("text", x =0.8,y=3, label = "n=506", color = "black",  size = 3) +
   theme(panel.border = element_rect(fill = NA),
              text = element_text(size = 10), # change font sizes
                  legend.position = "none",
@@ -1582,3 +1438,1714 @@ pdf("D:/Figures/Figure6.pdf", width = 6, height = 4)
                  axis.text.y = element_text(size = 10, colour = "black", hjust = 0.5, angle = 0)))
 dev.off()
 ```
+
+## Lifespan
+### Cleaning the  species traits  [life span] (https://genomics.senescence.info/species/index.html)
+
+```{r}
+databuncp %>% 
+  filter(Kingdom=="Animal")->databa
+
+# Import ANAge
+datage <- read.table(
+  "/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Data/anage_data.txt",
+  header = TRUE,
+  sep = "\t",
+  stringsAsFactors = FALSE
+)
+
+datage_subset <- datage %>%
+  mutate(Species = paste0(as.character(Genus), " ", as.character(Species)),
+         Order = Order) %>%
+  select(Species, Order, Maximum.longevity..yrs., Body.mass..g., Data.quality, Specimen.origin)
+
+# Import PanTHERIA WR05
+pan05 <- read.delim(
+  "/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Data/PanTHERIA_1-0_WR05_Aug2008.txt",
+  header = TRUE,
+  stringsAsFactors = FALSE
+)
+
+pan05_subset <- pan05 %>%
+  mutate(
+    Species = MSW05_Binomial,
+    Order = MSW05_Order,
+    Maximum.longevity..yrs. = ifelse(X17.1_MaxLongevity_m > 0, X17.1_MaxLongevity_m / 12, NA),
+    Body.mass..g. = ifelse(X5.1_AdultBodyMass_g > 0, X5.1_AdultBodyMass_g, NA),
+    Data.quality = NA,
+    Specimen.origin = NA
+  ) %>%
+  select(Species, Order, Maximum.longevity..yrs., Body.mass..g., Data.quality, Specimen.origin)
+# Import PanTHERIA WR93
+pan93 <- read.delim(
+  "/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Data/PanTHERIA_1-0_WR93_Aug2008.txt",
+  header = TRUE,
+  stringsAsFactors = FALSE
+)
+
+pan93_subset <- pan93 %>%
+  mutate(
+    Species = MSW93_Binomial,
+    Order = MSW93_Order,
+    Maximum.longevity..yrs. = ifelse(X17.1_MaxLongevity_m > 0, X17.1_MaxLongevity_m / 12, NA),
+    Body.mass..g. = ifelse(X5.1_AdultBodyMass_g > 0, X5.1_AdultBodyMass_g, NA),
+    Data.quality = NA,
+    Specimen.origin = NA
+  ) %>%
+  select(Species, Order, Maximum.longevity..yrs., Body.mass..g., Data.quality, Specimen.origin)
+
+# Import Amniote-Life-History-Database
+amniote <- read.csv(
+  "/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Data/Amniote-Life-History-Database.csv",
+  header = TRUE,
+  stringsAsFactors = FALSE
+)
+
+amniote_clean <- amniote %>%
+  mutate(
+    adult_body_mass_g = as.numeric(gsub("Quantity\\[|\\]|\"Grams\"|,.*", "", adult_body_mass_g)),
+    adult_body_mass_g = ifelse(grepl("Missing", adult_body_mass_g), NA, adult_body_mass_g),
+    maximum_longevity_y = as.numeric(gsub("Quantity\\[|\\]|\"Years\"|,.*", "", maximum_longevity_y)),
+    maximum_longevity_y = ifelse(grepl("Missing", maximum_longevity_y), NA, maximum_longevity_y)
+  )
+
+amniote_subset <- amniote_clean %>%
+  mutate(
+    Species = paste(genus, species),
+    Order = order,
+    Maximum.longevity..yrs. = ifelse(maximum_longevity_y > 0, maximum_longevity_y, NA),
+    Body.mass..g. = ifelse(adult_body_mass_g > 0, adult_body_mass_g, NA),
+    Data.quality = NA,
+    Specimen.origin = NA
+  ) %>%
+  select(Species, Order, Maximum.longevity..yrs., Body.mass..g., Data.quality, Specimen.origin)
+
+# Import bodymass and longevity
+bodymass_data_ds <- read.csv(
+  "/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Data/Bodymass.csv",
+  header = TRUE,
+  stringsAsFactors = FALSE
+)
+bodymass_data_ds<-bodymass_data_ds %>% 
+  rename(Body.mass..g.=BodyMass,
+         Maximum.longevity..yrs.=Longevity)
+# Merge all datasets
+all_traits <- bind_rows(datage_subset, pan05_subset, pan93_subset, amniote_subset,bodymass_data_ds)
+
+# Getting the species list 
+specie_bm_ab <-unique(all_traits$Species)
+
+# Run all names at once
+res_specie_bm_ab <- name_backbone_checklist(name = specie_bm_ab)
+
+# Extract orders
+sp_orders_ab <- as.data.frame(res_specie_bm_ab[,c("canonicalName","order")])
+
+# Match the order with the species in the original dataset. 
+
+all_traits_ab<-left_join(all_traits,sp_orders_ab,by=c("Species"="canonicalName")) %>% 
+  dplyr::select(-Order)
+
+# Average by species
+all_traits_avg <- all_traits_ab %>%
+  # Count how many times each species appears
+  group_by(Species) %>%
+  mutate(species_count = n()) %>%
+  ungroup() %>%
+  # For species with duplicates, compute mean per order
+  group_by(order, Species) %>%
+  summarise(
+    Maximum.longevity..yrs. = if (first(species_count) > 1) {
+      mean(Maximum.longevity..yrs., na.rm = TRUE)
+    } else {
+      first(Maximum.longevity..yrs.)
+    },
+    Body.mass..g. = if (first(species_count) > 1) {
+      mean(Body.mass..g., na.rm = TRUE)
+    } else {
+      first(Body.mass..g.)
+    },
+    .groups = "drop"
+  ) %>%
+  # Replace NaN (all NAs) with NA
+  mutate(
+    Maximum.longevity..yrs. = ifelse(is.nan(Maximum.longevity..yrs.), NA, Maximum.longevity..yrs.),
+    Body.mass..g. = ifelse(is.nan(Body.mass..g.), NA, Body.mass..g.)
+  )
+
+```
+
+```{r}
+# Merge with main dataset (databa)
+databuncpLS <- left_join(databa, all_traits_avg, by = "Species",
+  relationship = "many-to-many")
+
+# 8. Count species with traits
+trait_counts <- databuncpLS %>%
+  distinct(Species, .keep_all = TRUE) %>%
+  summarise(
+    n_species = n(),
+    n_longevity = sum(!is.na(Maximum.longevity..yrs.)),
+    n_bodymass = sum(!is.na(Body.mass..g.)),
+    n_both = sum(!is.na(Maximum.longevity..yrs.) & !is.na(Body.mass..g.))
+  )
+trait_counts
+```
+
+```{r}
+# Prepare data
+databuncpLS_clean <- databuncpLS %>%
+  filter(!is.na(Maximum.longevity..yrs.), !is.na(Body.mass..g.)) %>%
+  distinct(Species, .keep_all = TRUE) %>%
+  mutate(Body.mass_kg = Body.mass..g. / 1000)  # convert g to kg
+
+# Fit mixed-effects model
+fit_mixed_bm_ls <- lmer(log10(Maximum.longevity..yrs.) ~ log10(Body.mass_kg) + (1 | order), data = databuncpLS_clean)
+summary(fit_mixed_bm_ls)
+# Extract fixed-effect slope and intercept
+fixef_coef <- fixef(fit_mixed_bm_ls)
+intercept_fixed <- fixef_coef[1]
+slope_fixed <- fixef_coef[2]
+
+# Predict overall fixed effect line with CI
+pred_df <- data.frame(
+  Body.mass_kg = seq(min(databuncpLS_clean$Body.mass_kg), max(databuncpLS_clean$Body.mass_kg), length.out = 100)
+)
+pred_df$log10Longevity <- predict(fit_mixed_bm_ls, newdata = pred_df, re.form = NA)
+pred_df$log10Longevity_upper <- pred_df$log10Longevity + 1.96 * summary(fit_mixed_bm_ls)$sigma
+pred_df$log10Longevity_lower <- pred_df$log10Longevity - 1.96 * summary(fit_mixed_bm_ls)$sigma
+
+# Get random-effect intercepts per Order
+ranef_df <- ranef(fit_mixed_bm_ls)$order %>%
+  tibble::rownames_to_column(var = "order") %>%
+  rename(rand_intercept = `(Intercept)`)
+
+# Generate lines for each Order (random intercept)
+order_lines <- ranef_df %>%
+  mutate(
+    slope = slope_fixed
+  ) %>%
+  tidyr::crossing(Body.mass_kg = pred_df$Body.mass_kg) %>%
+  mutate(log10Longevity = slope * log10(Body.mass_kg) + intercept_fixed + rand_intercept)
+
+
+# # Plot
+# # Plot
+# Fig_bodymass_longevity <- ggplot(dat_clean, aes(x = Body.mass_kg, y = Maximum.longevity..yrs.)) +
+#   geom_point(alpha = 0.6, color = "steelblue") +
+#   
+#   # Random-intercept lines for each Order
+#   geom_line(data = order_lines, aes(x = Body.mass_kg, y = 10^log10Longevity, group = order),
+#             color = "gray70", alpha = 0.6) +
+#   
+#   # Overall fixed-effect line
+#   geom_line(data = pred_df, aes(x = Body.mass_kg, y = 10^log10Longevity),
+#             color = "darkred", size = 1.2) +
+#   
+#   # Fixed-effect CI (note inherit.aes = FALSE)
+#   geom_ribbon(data = pred_df, aes(x = Body.mass_kg, ymin = 10^log10Longevity_lower, ymax = 10^log10Longevity_upper),
+#               fill = "red", alpha = 0.2, inherit.aes = FALSE) +
+#   
+#   scale_x_log10() +
+#   scale_y_log10() +
+#   labs(
+#     x = "Body mass (kg, log scale)",
+#     y = "Maximum longevity (years, log scale)"
+#   ) +
+#   theme_light()
+
+# Export PDF
+#ggsave("bodymass_longevity_mixed_effect_CI.pdf", plot = p, width = 8, height = 6)
+
+
+```
+
+
+```{r}
+# Fit simple linear regression (log-log)
+fit <- lm(log10(Maximum.longevity..yrs.) ~ log10(Body.mass_kg), data =databuncpLS_clean )
+summary_fit <- summary(fit)
+
+# Extract slope and p-value
+slope <- round(summary_fit$coefficients[2, 1], 3)
+pval <- signif(summary_fit$coefficients[2, 4], 3)
+
+# Scatter plot with regression line + 95% CI
+p_simple <- ggplot(dat_clean, aes(x = Body.mass_kg, y = Maximum.longevity..yrs.)) +
+  geom_point(alpha = 0.6, color = "steelblue") +
+  geom_smooth(method = "lm", se = TRUE, color = "darkred") +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(
+    x = "Body mass (kg, log scale)",
+    y = "Maximum longevity (years, log scale)"
+  ) +
+  annotate("text", x = 1, y = 1, label = paste0("Slope = ", slope, "\nP = ", pval), hjust = 0, size = 4) +
+  theme_light()
+
+# Export PDF
+# ggsave("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Figure/bodymass_longevity.pdf", plot = p_simple, width = 5, height = 5)
+
+```
+
+```{r}
+# Filter data and resolve species names
+abunadat <- databuncpLS_clean %>%
+  filter(!is.na(Body.mass..g.) & !is.na(yi)) %>%
+  mutate(species2 = Species)
+
+# Resolve names via NCBI
+Species_bm<-unique(abunadat$species2)
+
+# Function to safely resolve a single species
+safe_verify <- function(sp) {
+  res <- tryCatch(
+    gna_verifier(sp, best_match_only = TRUE, canonical = TRUE),
+    error = function(e) return(data.frame(submitted_name = sp, matched_name = NA))
+  )
+  # If multiple rows returned, take the first (best match)
+  if(nrow(res) > 1) res <- res[1, , drop = FALSE]
+  return(res)
+}
+
+# Apply to all unique species
+resolved_list <- lapply(Species_bm, safe_verify)
+
+# Combine results into one data.frame
+resolved_ab <- do.call(rbind, resolved_list)
+
+# Inspect results
+head(resolved_ab)
+
+abunadat <- abunadat %>%
+  left_join(resolved_ab[, c("submittedName", "matchedCanonicalSimple")],
+            by = c("species2" = "submittedName")) %>%
+  rename(Species_resolved = matchedCanonicalSimple)
+
+# Retrieve taxonomy and build phylogenetic tree
+sp_classif_a <- classification(unique(abunadat$Species_resolved), db = "ncbi")
+abaphy <- class2tree(sp_classif_a)$phylo
+# write.nexus(abaphy, file = "/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Data/Phylogeny/abaphy.nex")
+
+```
+
+```{r}
+# Clean tree and align with data
+abunadat <- abunadat %>%
+  filter(Species %in% abaphy$tip.label)
+abunacleanTree <- drop.tip(abaphy, abaphy$tip.label[!abaphy$tip.label %in% abunadat$Species])
+A <- ape::vcv.phylo(abunacleanTree)
+
+# Fit phylogenetic mixed model using log10(Body.mass..g.)
+bodymass_model <- brm(
+  yi | se(se, sigma = TRUE) ~ scale(log10(Body.mass..g.)) + (1|ID) + (1|gr(Species, cov = A)),
+  data = abunadat,
+  family = gaussian(),
+  data2 = list(A = A),
+  prior = c(
+    prior(normal(0, 1), class = "b"),
+    prior(normal(0, 0.5), class = "Intercept"),
+    prior(student_t(3, 0, 0.2), class = "sd"),
+    prior(student_t(3, 0, 0.2), class = "sigma")
+  ),
+  iter = 5000,
+  cores = 4,
+  control = list(adapt_delta = 0.95)  # increase from default 0.8
+)
+
+summary(bodymass_model)
+
+# 5. Plot relationship with regression line and CI
+abunadat$logBodyMass <- log10(abunadat$Body.mass..g.)
+
+preds <- fitted(bodymass_model, newdata = abunadat, re_formula = NA, summary = TRUE)
+abunadat$fit <- preds[, "Estimate"]
+abunadat$fit_lower <- preds[, "Q2.5"]
+abunadat$fit_upper <- preds[, "Q97.5"]
+
+pdf("/Users/jm200/Library/CloudStorage/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Figure/Figure4_bodymass.pdf", width = 5, height = 4)
+ggplot(abunadat, aes(x = logBodyMass, y = yi)) +
+  geom_point(color = "orange2", size = 2.5, alpha = 0.6) +
+  #geom_ribbon(aes(ymin = fit_lower, ymax = fit_upper), fill = "gray80", alpha = 0.4) +
+  #geom_line(aes(y = fit), color = "darkred", size = 1) +
+  #geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  labs(x = "Log10 Body mass (g)", y = "Effect size") +
+  theme_light(base_size = 10) +
+  theme(panel.border = element_rect(fill = NA),
+        axis.text.y = element_text(angle = 90, hjust = 0.5))
+dev.off()
+
+```
+
+
+## Pollination mode
+### Pollination and population growth rate
+```{r}
+Pollinationdata <- read.csv("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Data/Pollinationinfo.csv", header = T)
+Pollinationdata$Pollination <- gsub(" ", "",Pollinationdata$Pollination)
+datlambdaPl<-left_join(x=datlambda,y=Pollinationdata,by="Species")
+datlambdaPl <- datlambdaPl[!apply(datlambdaPl[,c("Pollination", "vi")], 1, anyNA),] 
+```
+
+```{r}
+sp.lambdaplant <- datlambdaPl[, 5]
+spnamesplant <- as.character(sp.lambdaplant)
+# Retrieve classifications
+resolved_namesp <- classification(spnamesplant, db = "ncbi")
+resolved_namesp <- unique(resolved_namesp)
+# lapply(resolved_namesp, head)
+# Building a phylogenetic tree
+lambtree <- class2tree(resolved_namesp)
+#str(gentree)
+(lambtreephy <- lambtree$phylo)
+```
+
+```{r}
+# 1. Create a data frame of tip labels
+spnamesplant <- data.frame(Species = lambtreephy$tip.label)
+
+# 2. Merge with your lambda data (keeping all tips from the tree)
+podypdat <- merge(x = spnamesplant, y = datlambdaPl, by = "Species", all.x = TRUE)
+
+# 3. Keep only complete cases
+podypdat <- podypdat[complete.cases(podypdat), ]
+
+# 4. Drop tips from the tree that are not in the cleaned dataset
+tips_to_drop <- setdiff(lambtreephy$tip.label, podypdat$Species)
+lambdcleanTree <- drop.tip(lambtreephy, tips_to_drop)
+
+# 5. Compute the phylogenetic variance-covariance matrix
+A <- ape::vcv.phylo(lambdcleanTree)
+
+```
+
+```{r}
+datlambdaPl$Species <- factor(datlambdaPl$Species)
+# 2. Reorder A to match the levels of Species
+# Keep only species present in both the data and the phylo matrix
+species_in_both <- intersect(datlambdaPl$Species, rownames(A))
+datlambdaPl <- datlambdaPl %>% filter(Species %in% species_in_both)
+
+# Reorder the factor levels to match the covariance matrix
+datlambdaPl$Species <- factor(datlambdaPl$Species, levels = species_in_both)
+
+# Reorder A to match the data
+A <- A[species_in_both, species_in_both]
+
+Pollination.lambmodel <- brms::brm(
+  yi|se(se, sigma = TRUE) ~ (Pollination-1) + (1|ID) + (1|gr(Species, cov = A)),
+  data = datlambdaPl,
+  family = gaussian(),
+  data2 = list(A = A),
+  prior = c(
+    prior(normal(0, 1), "b"),
+    prior(student_t(3, 0, 5), "sd"),
+    prior(student_t(3, 0, 5), "sigma")
+  ),
+  control = list(adapt_delta = 0.9999, max_treedepth = 15),
+                   iter = 5000, cores = 4
+)
+  
+```
+
+```{r}
+summary(Pollination.lambmodel)
+```
+
+#### empirical cumulative distribution function
+```{r}
+get_variables(Pollination.lambmodel)
+post.samples_p_lambda <- posterior_samples(Pollination.lambmodel, pars=c("b_Pollinationout","b_Pollinationself"))
+mean(post.samples_p_lambda$b_Pollinationout>0)
+mean(post.samples_p_lambda$b_Pollinationself>0)
+smd.ecdf_p_lambda_out <- ecdf(post.samples_p_lambda$b_Pollinationout)
+smd.ecdf_p_lambda_self <- ecdf(post.samples_p_lambda$b_Pollinationself)
+smd.ecdf_p_lambda_out(0)
+smd.ecdf_p_lambda_self(0)
+```
+
+### Pollination and abundance
+```{r}
+databuncp %>%
+  filter(Kingdom == "Plant")->databp
+databuncpPl<-left_join(x=databp,y=Pollinationdata,by="Species")
+databuncpPl$Pollination <- gsub("Self", "self",databuncpPl$Pollination)
+# unique(databuncpPl$Pollination)
+databuncpPl <- databuncpPl[!apply(databuncpPl[,c("Pollination", "vi")], 1, anyNA),]
+databuncpPl %>%
+  group_by(Pollination) %>%
+  summarize(n_species = n_distinct(Species))
+# unique(databuncpPl$Species[is.na(databuncpPl$Pollination)])
+```
+
+```{r,eval=FALSE}
+sp.abp <- databuncpPl[, 5]
+spnamesabp <- as.character(sp.abp)
+species2 <- unique(spnamesabp)
+#length(species2)
+species2 <- trimws(gsub("\n", "", species2))  # clean up
+batch_size <- 50  # keep well under the 100 limit
+species_batches <- split(species2, ceiling(seq_along(species2) / batch_size))
+
+# Query each batch
+results <- lapply(species_batches, function(batch) {
+  taxize::gna_verifier(batch, best_match_only = TRUE, canonical = TRUE)
+})
+
+# Combine all results
+temp <- bind_rows(results)
+
+dat_abp <- merge(data.frame(species2), temp[,c("submittedName", "matchedCanonicalSimple")], 
+               by.x = "species2", by.y = "submittedName", all.x = TRUE)
+spnamesabp <-dat_abp[,2]
+# spnamesabp <- spnamesabp[complete.cases(spnamesabp)]
+# length(spnamesabp)
+# Retrieve classifications
+spnamesabpf <- classification(spnamesabp, db = "ncbi")
+resolved_names_abp <- unique(spnamesabpf)
+# Building a phylogenetic tree
+abptree <- class2tree(resolved_names_abp)
+# str(abptree)
+(abpphy <- abptree$phylo)
+# length(abpphy$edge.length)
+# Save to NEXUS file
+# write.nexus(abpphy, file = "/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Data/Phylogeny/abpphy.nex")
+```
+
+```{r}
+# Create a data frame of tip labels
+speciesabunp <- data.frame(Species = abpphy$tip.label)
+
+# Merge with your abundance data (keeping all tips from the tree)
+abunpdat <- merge(x = speciesabunp, y = databuncpPl, by = "Species", all.x = TRUE)
+
+# Keep only complete cases
+abunpdat <- abunpdat[complete.cases(abunpdat), ]
+
+# Drop tips from the tree that are not in the cleaned dataset
+tips_to_drop <- setdiff(abpphy$tip.label, abunpdat$Species)
+abunpcleanTree <- drop.tip(abpphy, tips_to_drop)
+
+# Compute the phylogenetic variance-covariance matrix
+A <- ape::vcv.phylo(abunpcleanTree)
+
+```
+
+```{r}
+Pollination.abunmodel <- brms::brm(
+  yi|se(se, sigma = TRUE) ~ (Pollination-1) + (1|ID) + (1|gr(Species, cov = A)),
+  data = abunpdat,
+  family = gaussian(),
+  data2 = list(A = A),
+  prior = c(
+    prior(normal(0, 1), "b"),
+    prior(student_t(3, 0, 1.5), "sd"),
+    prior(student_t(3, 0, 1.5), "sigma")
+  ), 
+  control = list(adapt_delta = 0.9999, max_treedepth = 15),iter = 5000, cores = 4
+)
+```
+
+```{r}
+summary(Pollination.abunmodel)
+```
+
+#### empirical cumulative distribution function
+```{r}
+get_variables(Pollination.abunmodel)
+post.samples_p_ab <- posterior_samples(Pollination.abunmodel, pars=c("b_Pollinationout","b_Pollinationself"))
+mean(post.samples_p_ab$b_Pollinationout>0)
+mean(post.samples_p_ab$b_Pollinationself>0)
+smd.ecdf_p_ab_out <- ecdf(post.samples_p_ab$b_Pollinationout)
+smd.ecdf_p_ab_self <- ecdf(post.samples_p_ab$b_Pollinationself)
+smd.ecdf_p_ab_out(0)
+smd.ecdf_p_ab_self(0)
+```
+
+### Pollination and genetic diversity 
+```{r}
+datgencp %>% 
+  filter(Kingdom == "Plant")->datgenp
+gencpPL<-left_join(x =datgenp, y =Pollinationdata ,by="Species")
+# unique(gencpPL$Species[is.na(gencpPL$Pollination)])
+```
+
+```{r}
+# lookup table for pollination systems
+pollination_gen <- data.frame(
+  Species = c("Zostera noltii",
+              "Narcissus longispathus",
+              "Vaccinium stamineum",
+              "Caryocar brasiliense",
+              "Arabidopsis thaliana",
+              "Clarkia xantiana xantiana",
+              "Cirsium canescens"),
+  Pollination = c("out",     # Zostera noltii
+                  "out",          # Narcissus longispathus
+                  "out",     # Vaccinium stamineum
+                  "out",          # Caryocar brasiliense
+                  "self",           # Arabidopsis thaliana
+                  "out",     # Clarkia xantiana xantiana
+                  "out")     # Cirsium canescens (likely outcrossed)
+)
+
+# merge into your main dataset (replace df with your object name)
+gencpPL <- gencpPL %>%
+  left_join(pollination_gen, by = "Species") %>%
+  mutate(Pollination = coalesce(Pollination.y, Pollination.x)) %>%
+  select(-Pollination.x, -Pollination.y)
+
+```
+
+
+```{r,eval=FALSE}
+sp.genp <- gencpPL[, 5]
+spnamesp <- as.character(sp.genp)
+# Retrieve classifications
+resolved_namesp <- classification(spnamesp, db = "ncbi")
+resolved_namesp <- unique(resolved_namesp)
+# lapply(resolved_namesp, head)
+# Building a phylogenetic tree
+genptree <- class2tree(resolved_namesp)
+#str(gentree)
+(genpphy <- genptree$phylo)
+# plot(genpphy)
+# write.nexus(genpphy, file = "/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Data/Phylogeny/genpphy.nex")
+```
+
+```{r}
+# Create a data frame of tip labels from the phylogenetic tree
+speciesgen <- data.frame(Species = genpphy$tip.label)
+
+# Merge with your trait data, keeping all species from the tree
+genpdat <- merge(x = speciesgen, y = gencpPL, by = "Species", all.x = TRUE)
+
+# Keep only complete cases
+genpdat <- genpdat[complete.cases(genpdat), ]
+
+# Drop tips from the tree that are not present in the cleaned dataset
+tips_to_drop <- setdiff(genpphy$tip.label, genpdat$Species)
+genpcleanTree <- drop.tip(genpphy, tips_to_drop)
+
+# Compute the phylogenetic variance-covariance matrix
+A <- ape::vcv.phylo(genpcleanTree)
+
+# Reorder A to match the species order in the data (important for brms)
+genpdat$Species <- factor(genpdat$Species, levels = rownames(A))
+A <- A[levels(genpdat$Species), levels(genpdat$Species)]
+
+```
+
+```{r}
+set.seed(13)
+Pollination.genmodel <- brms::brm(
+  yi|se(se, sigma = TRUE) ~ (Pollination-1) + (1|ID) + (1|gr(Species, cov = A)),
+  data = genpdat,
+  family = gaussian(),
+  data2 = list(A = A),
+  prior = c(
+    prior(normal(0, 1), "b"),
+    prior(student_t(3, 0, 3), "sd"),
+    prior(student_t(3, 0, 3), "sigma")
+  ),
+  control = list(adapt_delta = 0.9999, max_treedepth = 15),
+                   iter = 5000, cores = 4
+)
+  
+```
+
+```{r}
+summary(Pollination.genmodel)
+```
+
+#### empirical cumulative distribution function
+```{r}
+get_variables(Pollination.genmodel)
+post.samples_p_gen <- posterior_samples(Pollination.genmodel, pars=c("b_Pollinationout","b_Pollinationself"))
+mean(post.samples_p_gen$b_Pollinationout>0)
+mean(post.samples_p_gen$b_Pollinationself>0)
+smd.ecdf_p_gen_out <- ecdf(post.samples_p_gen$b_Pollinationout)
+smd.ecdf_p_gen_self <- ecdf(post.samples_p_gen$b_Pollinationself)
+smd.ecdf_p_gen_out(0)
+smd.ecdf_p_gen_self(0)
+# We see that with 0.1791, the probability of our pooled effect being smaller than 0 for out 
+# We see that with 0.1979, the probability of our pooled effect being smaller than 0 for self 
+```
+
+### Plot Pollination and population growth rate, population genetic and population abundance
+
+```{r}
+out_f_pollambda1 <- spread_draws(Pollination.abunmodel, b_Pollinationout) %>% 
+  mutate(study = "Cross\n pollinated") %>% 
+  dplyr::rename (Pollination=b_Pollinationout)
+# Data frame of summary numbers
+out_all_sum_pollambda1 <- group_by(out_f_pollambda1, study) %>% 
+  mean_qi(Pollination)
+
+
+
+out_f_pollambda2 <- spread_draws(Pollination.abunmodel, b_Pollinationself) %>% 
+  mutate(study = "Self\n pollinated") %>% 
+  dplyr::rename (Pollination=b_Pollinationself)
+# Data frame of summary numbers
+out_all_sum_pollambda2 <- group_by(out_f_pollambda2, study) %>% 
+  mean_qi(Pollination)
+
+out_allpol_lambda <- bind_rows(out_f_pollambda1, out_f_pollambda2) 
+out_all_sumpollmbda <-bind_rows(out_all_sum_pollambda1,out_all_sum_pollambda2) 
+
+Figure5a<-out_allpol_lambda %>%   
+  ggplot(aes(Pollination, study,fill = after_stat(x < 0))) +
+  labs(x = "Effect size (population growth rate)", y = '')+
+  xlim(-2,2)+
+  # Zero!
+  geom_vline(xintercept = 0, linewidth = .25, lty = 2) +
+  stat_halfeye(.width = c(0.95, 0.95)) +
+  scale_fill_manual(values = c("#F0E442", "#999999"))+
+  # Add text labels
+  geom_text(size = 3,
+    data = mutate_if(out_all_sumpollmbda, is.numeric, round, 2),
+    aes(label = str_glue("{Pollination} [{.lower}, {.upper}]"), x =-1.8),
+    hjust = "inward"
+  ) +
+  # annotate("text", x =-3,y=2.5, label = "a", color = "black",  size = 5) +
+  # annotate("text", x = 3,y=1, label = "n=12", color = "black",  size = 3) +
+  # annotate("text", x =3,y=2, label = "n=5", color = "black",  size = 3) +
+  theme(panel.border = element_rect(fill = NA),
+             text = element_text(size = 12), # change font sizes
+                 legend.position = "none",
+                 legend.title = element_text(size = 8),
+                 legend.text = element_text(size = 8),
+                 legend.background = element_blank(),
+                 panel.background = element_rect(fill="transparent"), 
+                 axis.text.x = element_text(size = 12, colour = "black"),
+                 axis.text.y = element_text(size = 12, colour = "black", hjust = 0.5, angle = 0))
+```
+
+
+```{r}
+out_f_polgen1 <- spread_draws(Pollination.genmodel, b_Pollinationout) %>% 
+  mutate(study = "Cross\n pollinated") %>% 
+  dplyr::rename (Pollination=b_Pollinationout)
+# Data frame of summary numbers
+out_all_sum_polgen1 <- group_by(out_f_polgen1, study) %>% 
+  mean_qi(Pollination)
+
+out_f_polgen2 <- spread_draws(Pollination.genmodel, b_Pollinationself) %>% 
+  mutate(study = "Self\n pollinated") %>% 
+  dplyr::rename (Pollination=b_Pollinationself)
+# Data frame of summary numbers
+out_all_sum_polgen2 <- group_by(out_f_polgen2, study) %>% 
+  mean_qi(Pollination)
+
+out_allpol_gen <- bind_rows(out_f_polgen1, out_f_polgen2) 
+out_all_sumpolgen <-bind_rows(out_all_sum_polgen1,out_all_sum_polgen2) 
+
+Figure5b<-out_allpol_gen %>%   
+  ggplot(aes(Pollination, study,fill = after_stat(x < 0))) +
+  labs(x = "Effect size (Genetic diversity)", y = "")+
+   xlim(-3.5,3)+
+  # Zero!
+  geom_vline(xintercept = 0, linewidth = .25, lty = 2) +
+  stat_halfeye(.width = c(0.95, 0.95)) +
+  scale_fill_manual(values = c("#F0E442", "#999999"))+
+  # Add text labels
+  geom_text(size = 3,
+    data = mutate_if(out_all_sumpolgen, is.numeric, round, 2),
+    aes(label = str_glue("{Pollination} [{.lower}, {.upper}]"), x =-3.45),
+    hjust = "inward"
+  ) +
+  # annotate("text", label = "b", x =-4,y=2.5, size = 5)+
+  # annotate("text", x = 3,y=1, label = "n=40", color = "black",  size = 3) +
+  # annotate("text", x =3,y=2, label = "n=7", color = "black",  size = 3) +
+  theme(panel.border = element_rect( fill=NA),
+             text = element_text(size = 12), # change font sizes
+                 legend.position = "none",
+                 legend.title = element_text(size = 8),
+                 legend.text = element_text(size = 8),
+                 legend.background = element_blank(),
+                 panel.background = element_rect(fill="transparent"), 
+                 axis.text.x = element_text(size = 12, colour = "black"),
+                 axis.text.y = element_text(size = 12, colour = "black", hjust = 0.5, angle = 0))
+```
+
+
+```{r}
+out_f_polabun1 <- spread_draws(Pollination.abunmodel, b_Pollinationout) %>% 
+  mutate(study = "Cross\n pollinated") %>% 
+  dplyr::rename (Pollination=b_Pollinationout)
+# Data frame of summary numbers
+out_all_sum_polabund1 <- group_by(out_f_polabun1, study) %>% 
+  mean_qi(Pollination)
+
+out_f_polabund2 <- spread_draws(Pollination.abunmodel, b_Pollinationself) %>% 
+  mutate(study = "Self\n pollinated") %>% 
+  dplyr::rename (Pollination=b_Pollinationself)
+# Data frame of summary numbers
+out_all_sum_polabun2 <- group_by(out_f_polabund2, study) %>% 
+  mean_qi(Pollination)
+
+out_allpol_abun <- bind_rows(out_f_polabun1, out_f_polabund2) 
+out_all_sumpolabun <-bind_rows(out_all_sum_polabund1,out_all_sum_polabun2) 
+
+Figure5c<-out_allpol_abun %>%   
+  ggplot(aes(Pollination, study,fill = after_stat(x < 0))) +
+  labs(x = "Effect size (abundance)", y = '')+
+   xlim(-2,2)+
+  # Zero!
+  geom_vline(xintercept = 0, linewidth = .25, lty = 2) +
+  stat_halfeye(.width = c(0.95, 0.95)) +
+   scale_fill_manual(values = c("#F0E442", "#999999"))+
+  # Add text labels
+  geom_text(size = 3,
+    data = mutate_if(out_all_sumpolabun, is.numeric, round, 2),
+    aes(label = str_glue("{Pollination} [{.lower}, {.upper}]"), x =-1.8),
+    hjust = "inward"
+  ) +
+  # annotate("text", label = "c", x =-2.5,y=2.5, size = 5)+
+  # annotate("text", x = 2,y=1, label = "n=324", color = "black",  size = 3) +
+  # annotate("text", x =2,y=2, label = "n=13", color = "black",  size = 3) +
+  theme(panel.border = element_rect(fill=NA),
+             text = element_text(size = 12), # change font sizes
+                 legend.position = "none",
+                 legend.title = element_text(size = 8),
+                 legend.text = element_text(size = 8),
+                 legend.background = element_blank(),
+                 panel.background = element_rect(fill="transparent"), 
+                 axis.text.x = element_text(size = 12, colour = "black"),
+                 axis.text.y = element_text(size = 12, colour = "black", hjust = 0.5, angle = 0))
+
+```
+
+```{r}
+
+# Arrange plots
+pdf("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Figure/Figure5.pdf", width = 14, height = 5)
+Figure5 <- (Figure5a + Figure5b + Figure5c) +
+  plot_annotation(
+    tag_levels = 'a'  # automatically assigns 'a', 'b', 'c'
+  ) &
+  theme(
+    plot.tag = element_text(size = 16, face = "plain"),
+    plot.tag.position = c(0.1, 1.0)  # top-left corner
+  )
+
+Figure5
+dev.off()
+```
+
+```{r}
+# Load packages
+
+# Get unique species list
+species_list <- as.character(unique(datlambda$Species))
+
+# Retrieve all traits available for these species
+all_traits <- BIEN_trait_species(species_list)
+
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+# Function to calculate mode
+get_mode <- function(x) {
+  ux <- unique(x[!is.na(x)])
+  if(length(ux) == 0) return(NA)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+# Clean trait values
+all_traits_clean <- all_traits %>%
+  mutate(trait_value_clean = str_trim(trait_value))
+
+# Detect numeric traits
+numeric_traits <- all_traits_clean %>%
+  mutate(is_numeric = !is.na(as.numeric(trait_value_clean))) %>%
+  group_by(trait_name) %>%
+  summarise(n_numeric = sum(is_numeric, na.rm = TRUE),
+            n_total = n(),
+            .groups = "drop") %>%
+  filter(n_numeric / n_total > 0.5) %>%   # if >50% numeric, treat as numeric
+  pull(trait_name)
+
+# Split numeric and categorical traits
+traits_numeric <- all_traits_clean %>%
+  filter(trait_name %in% numeric_traits) %>%
+  mutate(trait_value = as.numeric(trait_value_clean)) %>%
+  group_by(scrubbed_species_binomial, trait_name) %>%
+  summarise(trait_mean = mean(trait_value, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = trait_name, values_from = trait_mean)
+
+traits_categorical <- all_traits_clean %>%
+  filter(!trait_name %in% numeric_traits) %>%
+  group_by(scrubbed_species_binomial, trait_name) %>%
+  summarise(trait_mode = get_mode(trait_value_clean), .groups = "drop") %>%
+  pivot_wider(names_from = trait_name, values_from = trait_mode)
+traits_categorical$`whole plant growth form`
+# Combine numeric and categorical traits
+traits_combined <- traits_numeric %>%
+  left_join(traits_categorical, by = "scrubbed_species_binomial")
+view(traits_combined)
+# Join with abundance data
+datlambda_with_traits <- datlambda %>%
+  left_join(traits_combined, by = c("Species" = "scrubbed_species_binomial"))
+
+names(all_traits)
+# Pivot to wide format
+traits_wide <- all_traits %>%
+  select(scrubbed_species_binomial, trait_name, trait_value) %>%   # select relevant columns
+  pivot_wider(names_from = trait_name, values_from = trait_value)
+
+# Inspect the wide dataframe
+head(traits_wide)
+view(traits_wide)
+
+
+# Compute mean of each trait per species
+traits_mean <- all_traits %>%
+  select(scrubbed_species_binomial, trait_name, trait_value) %>%
+  # Convert trait_value to numeric if possible
+  mutate(trait_value = as.numeric(trait_value)) %>%
+  group_by(scrubbed_species_binomial, trait_name) %>%
+  summarise(trait_mean = mean(trait_value, na.rm = TRUE), .groups = "drop") %>%
+  # Pivot to wide format
+  pivot_wider(names_from = trait_name, values_from = trait_mean)
+
+view(traits_mean)
+```
+
+```{r}
+lambda_lifeform<-left_join(datlambda,traits_categorical, by=c("Species"="scrubbed_species_binomial"))
+lambda_lifeform %>% 
+  dplyr::select(ID,Species,`whole plant growth form`,yi,vi,se)->lambda_lifeform_meta
+# Create a lookup table for species with NA growth forms
+growth_forms <- c(
+  "Erythranthe cardinalis" = "Herb",
+  "Erythranthe lewisii"    = "Herb",
+  "Cypripedium calcicola"  = "Herb",   # terrestrial orchid
+  "Ascophyllum nodosum"    = "Alga",
+  "Fucus serratus"         = "Alga",
+  "Penanthes roanensis"    = "Herb",   # likely Prenanthes roanensis
+  "Ranunculus austro-oreganus" = "Herb",
+  "Thunbergia atacorensis "="Herb"
+)
+
+# Replace NA values in whole.plant.growth.form
+lambda_lifeform_meta$`whole plant growth form` <- ifelse(
+  is.na(lambda_lifeform_meta$`whole plant growth form`),
+  growth_forms[lambda_lifeform_meta$Species],
+  lambda_lifeform_meta$`whole plant growth form`
+)
+
+lambda_lifeform_meta_clean <- lambda_lifeform_meta %>%
+  # rename column
+  rename(growth_form = `whole plant growth form`) %>%
+  # standardize capitalization
+  mutate(growth_form = str_to_title(growth_form)) %>%
+  # remove rows with Alga
+  filter(growth_form != "Alga")
+
+```
+
+```{r}
+# Ensure variables are set correctly
+lambda_lifeform_meta_clean <- lambda_lifeform_meta_clean %>%
+  mutate(
+    Species = factor(Species),
+    growth_form = factor(growth_form)  # categorical predictor
+  )
+
+# Keep only species present in both the data and the phylo matrix
+species_in_both <- intersect(lambda_lifeform_meta_clean$Species, rownames(A))
+lambda_lifeform_meta_clean <- lambda_lifeform_meta_clean %>%
+  filter(Species %in% species_in_both)
+
+# Reorder Species factor levels to match covariance matrix
+lambda_lifeform_meta_clean$Species <- factor(
+  lambda_lifeform_meta_clean$Species,
+  levels = species_in_both
+)
+
+# Reorder phylogenetic covariance matrix
+A <- A[species_in_both, species_in_both]
+
+# Run the phylogenetic meta-regression model with growth_form
+GrowthForm.lambmodel <- brms::brm(
+  yi | se(se, sigma = TRUE) ~ (growth_form-1) + (1|gr(Species, cov = A)),
+  data   = lambda_lifeform_meta_clean,
+  family = gaussian(),
+  data2  = list(A = A),
+  prior  = c(
+    prior(normal(0, 1), "b"),          # fixed effects for growth_form
+    prior(student_t(3, 0, 5), "sd"),   # random effects
+    prior(student_t(3, 0, 5), "sigma") # residual
+  ),
+  control = list(adapt_delta = 0.9999, max_treedepth = 15),
+  iter = 5000, cores = 4
+)
+
+```
+
+```{r}
+summary(GrowthForm.lambmodel)
+```
+
+#### empirical cumulative distribution function
+```{r}
+get_variables(GrowthForm.lambmodel)
+post.samples_p_form <- posterior_samples(GrowthForm.lambmodel, pars=c("b_growth_formHerb","b_growth_formShrub"))
+mean(post.samples_p_form$b_growth_formHerb>0)
+mean(post.samples_p_form$b_growth_formShrub>0)
+smd.ecdf_p_lm_herb <- ecdf(post.samples_p_form$b_growth_formHerb)
+smd.ecdf_p_lm_shurb <- ecdf(post.samples_p_form$b_growth_formShrub)
+smd.ecdf_p_lm_herb(0)
+smd.ecdf_p_lm_shurb(0)
+# We see that with 0.4105, the probability of our pooled effect being smaller than 0 for out 
+# We see that with 0.5283, the probability of our pooled effect being smaller than 0 for self 
+```
+
+### Plot growth form and population growth rate, population genetic and population abundance
+
+```{r}
+herb_lambda <- spread_draws(GrowthForm.lambmodel, b_growth_formHerb) %>% 
+  mutate(study = "Herb") %>% 
+  dplyr::rename (Form=b_growth_formHerb)
+# Data frame of summary numbers
+all_sum_lam_herb <- group_by(herb_lambda, study) %>% 
+  mean_qi(Form)
+
+shurb_ambda <- spread_draws(GrowthForm.lambmodel, b_growth_formShrub) %>% 
+  mutate(study = "Shrub") %>% 
+  dplyr::rename (Form=b_growth_formShrub)
+# Data frame of summary numbers
+all_sum_pollam_shurb <- group_by(shurb_ambda, study) %>% 
+  mean_qi(Form)
+
+
+tree_ambda <- spread_draws(GrowthForm.lambmodel, b_growth_formTree) %>% 
+  mutate(study = "Tree") %>% 
+  dplyr::rename (Form=b_growth_formTree)
+# Data frame of summary numbers
+all_sum_pollam_tree <- group_by(tree_ambda, study) %>% 
+  mean_qi(Form)
+
+all_lambda_form <- bind_rows(herb_lambda, shurb_ambda,tree_ambda) 
+all_sumlambda_form <-bind_rows(all_sum_lam_herb,all_sum_pollam_shurb,all_sum_pollam_tree) 
+
+Figure7a<-all_lambda_form %>%   
+  ggplot(aes(Form, study,fill = after_stat(x < 0))) +
+  labs(x = "Effect size (population growth rate)", y = '')+
+  xlim(-4.5,3.5)+
+  # Zero!
+  geom_vline(xintercept = 0, linewidth = .25, lty = 2) +
+  stat_halfeye(.width = c(0.95, 0.95)) +
+  scale_fill_manual(values = c("#F0E442", "#999999"))+
+  # Add text labels
+  geom_text(size = 2.8,
+    data = mutate_if(all_sumlambda_form, is.numeric, round, 2),
+    aes(label = str_glue("{Form} [{.lower}, {.upper}]"), x =-4.5),
+    hjust = "inward"
+  ) +
+  # annotate("text", x =-3,y=2.5, label = "a", color = "black",  size = 5) +
+  # annotate("text", x = 3,y=1, label = "n=12", color = "black",  size = 3) +
+  # annotate("text", x =3,y=2, label = "n=5", color = "black",  size = 3) +
+  theme(panel.border = element_rect(fill = NA),
+             text = element_text(size = 10), # change font sizes
+                 legend.position = "none",
+                 legend.title = element_text(size = 8),
+                 legend.text = element_text(size = 8),
+                 legend.background = element_blank(),
+                 panel.background = element_rect(fill="transparent"), 
+                 axis.text.x = element_text(size = 10, colour = "black"),
+                 axis.text.y = element_text(size = 10, colour = "black", hjust = 0.5, angle = 0))
+```
+
+
+
+```{r}
+lambda_seed <- datlambda %>%
+  left_join(traits_mean, by = c("Species" = "scrubbed_species_binomial")) %>%
+  # Rename seed_mass if needed
+  rename(seed_mass = `seed mass`) %>%  # only if the column has a space
+  # Remove rows with NA in seed_mass
+  filter(!is.na(seed_mass))
+
+```
+
+```{r}
+seed_model_phylo <- brm(
+  yi | se(se, sigma = TRUE) ~ log10(seed_mass) + (1|gr(Species, cov = A)),
+  data = lambda_seed,
+  data2 = list(A = A),
+  family = gaussian(),
+  prior = c(
+    prior(normal(0, 1), class = "b"),
+    prior(normal(0, 0.5), class = "Intercept"),
+    prior(student_t(3, 0, 0.2), class = "sigma")
+  ),
+  iter = 5000,
+  cores = 4,
+  control = list(adapt_delta = 0.99)
+)
+```
+
+```{r}
+summary(seed_model)
+```
+
+```{r}
+# Fit the seed_mass model
+seed_model <- brm(
+  yi | se(se, sigma = TRUE) ~ log10(seed_mass),
+  data = lambda_seed,
+  family = gaussian(),
+  prior = c(
+    prior(normal(0, 1), class = "b"),
+    prior(normal(0, 0.5), class = "Intercept"),
+    prior(student_t(3, 0, 0.2), class = "sigma")
+  ),
+  iter = 5000,
+  cores = 4,
+  control = list(adapt_delta = 0.99)
+)
+
+summary(seed_model)
+
+# 2. Add log10-transformed predictor for plotting
+lambda_seed$logSeedMass <- log10(lambda_seed$seed_mass)
+
+# 3. Get fitted values with credible intervals
+seed_preds <- fitted(seed_model, newdata = lambda_seed, re_formula = NA, summary = TRUE)
+lambda_seed <- lambda_seed %>%
+  mutate(fit = seed_preds[, "Estimate"],
+         fit_lower = seed_preds[, "Q2.5"],
+         fit_upper = seed_preds[, "Q97.5"])
+
+
+label_lamd_seed <- lambda_seed %>%
+  summarize(
+    minX = min(log10(seed_mass)),
+    maxX = max(log10(seed_mass)),
+    lower = min(fit_lower),
+    upper = max(fit_upper)
+  ) %>%
+  mutate(label = str_glue("CI [{round(lower,2)}, {round(upper,2)}]"))
+
+# Plot regression line with CI
+pdf("/Users/jm200/Library/CloudStorage/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Figure/Figure4_seedmass.pdf",
+    width = 5, height = 4)
+
+Fig7d<-ggplot(lambda_seed, aes(x = logSeedMass, y = yi)) +
+  geom_point(color = "orange2", size = 2.5, alpha = 0.6) +
+  # geom_ribbon(aes(ymin = fit_lower, ymax = fit_upper), fill = "gray80", alpha = 0.4) +
+  # geom_line(aes(y = fit), color = "blue4", size = 1) +
+  labs(x = "Log10 Seed mass", y = "Effect size (population growth rate)") +
+  my_theme
+
+dev.off()
+
+```
+
+## Genetic 
+```{r}
+species_list_gp <- unique(as.character(datgenp$Species))
+all_traits_gp <- BIEN_trait_species(species_list_gp)
+all_traits_gp_clean <- all_traits_gp %>%
+  mutate(trait_value_clean = str_trim(trait_value))
+```
+
+```{r}
+get_mode <- function(x) {
+  ux <- unique(x[!is.na(x)])
+  if(length(ux) == 0) return(NA)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+numeric_gp_traits <- all_traits_gp_clean %>%
+  mutate(is_numeric = !is.na(as.numeric(trait_value_clean))) %>%
+  group_by(trait_name) %>%
+  summarise(n_numeric = sum(is_numeric, na.rm = TRUE),
+            n_total = n(),
+            .groups = "drop") %>%
+  filter(n_numeric / n_total > 0.5) %>%
+  pull(trait_name)
+
+```
+
+```{r}
+# Split numeric and categorical traits
+traits_numeric_g <- all_traits_gp_clean %>%
+  filter(trait_name %in% numeric_traits) %>%
+  mutate(trait_value = as.numeric(trait_value_clean)) %>%
+  group_by(scrubbed_species_binomial, trait_name) %>%
+  summarise(trait_mean = mean(trait_value, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = trait_name, values_from = trait_mean)
+#view(traits_numeric_g)
+```
+
+```{r}
+traits_gp_categorical <- all_traits_gp_clean %>%
+  filter(!trait_name %in% numeric_gp_traits) %>%
+  group_by(scrubbed_species_binomial, trait_name) %>%
+  summarise(trait_mode = get_mode(trait_value_clean), .groups = "drop") %>%
+  pivot_wider(names_from = trait_name, values_from = trait_mode)
+# view(traits_gp_categorical)
+```
+
+```{r}
+gen_lifeform <- left_join(datgenp, traits_gp_categorical, by = c("Species" = "scrubbed_species_binomial"))
+gen_lifeform %>% 
+  dplyr::select(ID,Species,`whole plant growth form`,yi,vi,se)->gen_lifeform_meta
+# view(gen_lifeform_meta)
+unique(gen_lifeform_meta$`whole plant growth form`)
+```
+
+```{r}
+growth_forms <- c(
+  "Cymodocea nodosa"          = "Herb",   # aquatic plant
+  "Saccorhiza polyschides"    = "Alga",   # if needed, can exclude later
+  "Campanulastrum americanum" = "Herb",
+  "Cypripedium"               = "Herb",
+  "Genista legionensis"       = "Shrub",
+  "Saponaria bellidifolia"    = "Herb",
+  "Neotinea maculata"         = "Herb",
+  "Viola elatior"             = "Herb",
+  "Viola pumila"              = "Herb",
+  "Viola stagnina"            = "Herb",
+  "Pinus contorta"            = "Tree",
+  "Grevillea repens"          = "Shrub",
+  "Anthyllis montana"         = "Shrub",
+  "Carex magellanica"         = "Herb",
+  "Epidendrum fulgens"        = "Herb"
+)
+```
+
+```{r}
+# Replace NA values in whole.plant.growth.form
+gen_lifeform$`whole plant growth form` <- ifelse(
+  is.na(gen_lifeform$`whole plant growth form`),
+  growth_forms[gen_lifeform$Species],
+  gen_lifeform$`whole plant growth form`
+)
+
+unique(gen_lifeform$`whole plant growth form`)
+gen_lifeform_clean <- gen_lifeform %>%
+  # rename column
+  rename(growth_form = `whole plant growth form`) %>%
+  # remove rows with unwanted growth forms and NAs
+  filter(!is.na(growth_form) & !tolower(growth_form) %in% c("alga", "aquatic*","aquatic","forb")) %>%
+  # standardize capitalization for values
+  mutate(
+    growth_form = case_when(
+      tolower(growth_form) %in% c("tree") ~ "Tree",
+      tolower(growth_form) %in% c("shrub") ~ "Shrub",
+      tolower(growth_form) %in% c("herb") ~ "Herb",
+      TRUE ~ growth_form
+    ),
+    # convert to factor
+    growth_form = factor(growth_form)
+  )
+
+unique(gen_lifeform_clean$growth_form)
+
+
+```
+
+```{r}
+# 1. Remove rows with missing growth_form
+gen_lifeform_clean <- gen_lifeform_clean %>% filter(!is.na(growth_form))
+
+# 2. Only keep species present in A
+species_in_matrix <- intersect(gen_lifeform_clean$Species, rownames(A))
+gen_lifeform_clean <- gen_lifeform_clean %>% filter(Species %in% species_in_matrix)
+
+# 3. Reorder Species factor to match covariance matrix
+gen_lifeform_clean$Species <- factor(gen_lifeform_clean$Species, levels = species_in_matrix)
+
+# 4. Reorder phylogenetic covariance matrix
+A <- A[species_in_matrix, species_in_matrix]
+
+# 5. Fit the phylogenetic meta-regression
+growthform_model_gp <- brm(
+  yi | se(se, sigma = TRUE) ~ 0 + growth_form + (1|ID) + (1 | gr(Species, cov = A)),
+  data = gen_lifeform_clean,
+  family = gaussian(),
+  data2 = list(A = A),
+  prior = c(
+    prior(normal(0, 1), class = "b"),
+    prior(student_t(3, 0, 5), class = "sd"),
+    prior(student_t(3, 0, 5), class = "sigma")
+  ),
+  control = list(adapt_delta = 0.9999, max_treedepth = 15),
+  iter = 5000, cores = 4
+)
+
+
+```
+
+```{r}
+summary(growthform_model_gp)
+```
+
+```{r}
+# Variables
+get_variables(growthform_model_gp)
+
+# Posterior samples for growth forms
+post.samples_gp_form <- posterior_samples(
+  growthform_model_gp,
+  pars = c("b_growth_formHerb","b_growth_formShrub","b_growth_formTree")
+)
+
+# Posterior probabilities > 0
+mean(post.samples_gp_form$b_growth_formHerb > 0)
+mean(post.samples_gp_form$b_growth_formShrub > 0)
+mean(post.samples_gp_form$b_growth_formTree > 0)
+
+# ECDF for probabilities below 0
+smd.ecdf_gp_herb  <- ecdf(post.samples_gp_form$b_growth_formHerb)
+smd.ecdf_gp_shrub <- ecdf(post.samples_gp_form$b_growth_formShrub)
+smd.ecdf_gp_tree  <- ecdf(post.samples_gp_form$b_growth_formTree)
+
+smd.ecdf_gp_herb(0)
+smd.ecdf_gp_shrub(0)
+smd.ecdf_gp_tree(0)
+
+# Plot for growth form effects
+
+# Herb
+herb_gp <- spread_draws(growthform_model_gp, b_growth_formHerb) %>%
+  mutate(study = "Herb") %>%
+  dplyr::rename(Form = b_growth_formHerb)
+all_sum_gp_herb <- group_by(herb_gp, study) %>% mean_qi(Form)
+
+# Shrub
+shrub_gp <- spread_draws(growthform_model_gp, b_growth_formShrub) %>%
+  mutate(study = "Shrub") %>%
+  dplyr::rename(Form = b_growth_formShrub)
+all_sum_gp_shrub <- group_by(shrub_gp, study) %>% mean_qi(Form)
+
+# Tree
+tree_gp <- spread_draws(growthform_model_gp, b_growth_formTree) %>%
+  mutate(study = "Tree") %>%
+  dplyr::rename(Form = b_growth_formTree)
+all_sum_gp_tree <- group_by(tree_gp, study) %>% mean_qi(Form)
+
+# Combine
+all_gp_form <- bind_rows(herb_gp, shrub_gp, tree_gp)
+all_sum_gp_form <- bind_rows(all_sum_gp_herb, all_sum_gp_shrub, all_sum_gp_tree)
+
+# Plot
+Figure7b <- all_gp_form %>%
+  ggplot(aes(Form, study, fill = after_stat(x < 0))) +
+  labs(x = "Effect size (genetic diversity)", y = '') +
+  xlim(-4.5, 3) +
+  geom_vline(xintercept = 0, linewidth = .25, lty = 2) +
+  stat_halfeye(.width = c(0.95, 0.95)) +
+  scale_fill_manual(values = c("#F0E442", "#999999")) +
+  geom_text(
+    size = 2.8,
+    data = mutate_if(all_sum_gp_form, is.numeric, round, 2),
+    aes(label = str_glue("{Form} [{.lower}, {.upper}]"), x = -4.5),
+    hjust = "inward"
+  ) +
+  theme(
+    panel.border     = element_rect(fill = NA),
+    text             = element_text(size = 10),
+    legend.position  = "none",
+    legend.title     = element_text(size = 8),
+    legend.text      = element_text(size = 8),
+    legend.background= element_blank(),
+    panel.background = element_rect(fill="transparent"),
+    axis.text.x      = element_text(size = 10, colour = "black"),
+    axis.text.y      = element_text(size = 10, colour = "black", hjust = 0.5, angle = 0)
+  )
+
+```
+
+```{r}
+traits_numeric_g$`seed mass`
+# Compute mean of each trait per species
+traits_g <- traits_numeric_g %>%
+  select(scrubbed_species_binomial, `seed mass`,) %>%
+  # Convert trait_value to numeric if possible
+  mutate(seed_mass = as.numeric(`seed mass`)) %>% 
+  na.omit()
+
+```
+
+
+```{r}
+gen_seed <- gencpPL %>%
+  left_join(traits_g, by = c("Species" = "scrubbed_species_binomial")) %>%
+  # Remove rows with NA in seed_mass
+  filter(!is.na(seed_mass))
+
+```
+
+```{r}
+# Fit the seed_mass model
+seed_model_g <- brm(
+  yi | se(se, sigma = TRUE) ~ log10(seed_mass),
+  data = gen_seed,
+  family = gaussian(),
+  prior = c(
+    prior(normal(0, 1), class = "b"),
+    prior(normal(0, 0.5), class = "Intercept"),
+    prior(student_t(3, 0, 0.2), class = "sigma")
+  ),
+  iter = 5000,
+  cores = 4,
+  control = list(adapt_delta = 0.99)
+)
+
+summary(seed_model_g)
+
+# 2. Add log10-transformed predictor for plotting
+gen_seed$logSeedMass <- log10(gen_seed$seed_mass)
+
+# 3. Get fitted values with credible intervals
+seed_preds_g <- fitted(seed_model_g, newdata = gen_seed, re_formula = NA, summary = TRUE)
+gen_seed <- gen_seed %>%
+  mutate(fit = seed_preds_g[, "Estimate"],
+         fit_lower = seed_preds_g[, "Q2.5"],
+         fit_upper = seed_preds_g[, "Q97.5"])
+
+
+# Plot regression line with CI
+pdf("/Users/jm200/Library/CloudStorage/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Figure/Figure4_seedmass.pdf",
+    width = 5, height = 4)
+
+Fig7f<-ggplot(gen_seed, aes(x = logSeedMass, y = yi)) +
+  geom_point(color = "orange2", size = 2.5, alpha = 0.6) +
+  geom_ribbon(aes(ymin = fit_lower, ymax = fit_upper), fill = "gray80", alpha = 0.4) +
+  geom_line(aes(y = fit), color = "blue4", size = 1) +
+  labs(x = "Log10 Seed mass", y = "Effect size (population growth rate)") +
+  my_theme
+
+dev.off()
+
+```
+
+
+```{r}
+# Prepare trait data
+species_list_ab <- unique(as.character(abunpdat$Species))
+
+# Retrieve traits
+all_traits_ab <- BIEN_trait_species(species_list_ab)
+
+# Mode function for categorical traits
+compute_mode <- function(x) {
+  ux <- unique(x[!is.na(x)])
+  if(length(ux) == 0) return(NA)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+# Clean trait values
+all_traits_clean_ab <- all_traits_ab %>%
+  mutate(trait_value_clean = str_trim(trait_value))
+
+# Detect numeric traits
+numeric_traits_ab <- all_traits_clean_ab %>%
+  mutate(is_numeric = !is.na(as.numeric(trait_value_clean))) %>%
+  group_by(trait_name) %>%
+  summarise(n_numeric = sum(is_numeric, na.rm = TRUE),
+            n_total = n(),
+            .groups = "drop") %>%
+  filter(n_numeric / n_total > 0.5) %>%
+  pull(trait_name)
+
+# Split numeric and categorical
+traits_numeric_ab <- all_traits_clean_ab %>%
+  filter(trait_name %in% numeric_traits_ab) %>%
+  mutate(trait_value = as.numeric(trait_value_clean)) %>%
+  group_by(scrubbed_species_binomial, trait_name) %>%
+  summarise(trait_mean = mean(trait_value, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = trait_name, values_from = trait_mean)
+
+traits_categorical_ab <- all_traits_clean_ab %>%
+  filter(!trait_name %in% numeric_traits_ab) %>%
+  group_by(scrubbed_species_binomial, trait_name) %>%
+  summarise(trait_mode = compute_mode(trait_value_clean), .groups = "drop") %>%
+  pivot_wider(names_from = trait_name, values_from = trait_mode)
+
+# Combine numeric + categorical traits
+traits_all_ab <- traits_numeric_ab %>%
+  left_join(traits_categorical_ab, by = "scrubbed_species_binomial")
+
+# Merge with abundance data
+abund_traits_ab <- abunpdat %>%
+  left_join(traits_all_ab, by = c("Species" = "scrubbed_species_binomial")) %>%
+  rename(seed_mass_g = `seed mass`) %>%  # rename for clarity
+  filter(!is.na(seed_mass_g))
+
+# Fit seed mass meta-regression with Species random effect
+
+```
+
+```{r}
+seed_mass_model_ab <- brm(
+  yi | se(se, sigma = TRUE) ~ log10(seed_mass_g) + (1 | Species),
+  data = abund_traits_ab,
+  family = gaussian(),
+  prior = c(
+    prior(normal(0, 1), class = "b"),          # fixed effect
+    prior(normal(0, 0.5), class = "Intercept"), 
+    prior(student_t(3, 0, 0.2), class = "sd"), # random effect
+    prior(student_t(3, 0, 0.2), class = "sigma") # residual
+  ),
+  iter = 5000,
+  cores = 4,
+  control = list(adapt_delta = 0.99)
+)
+
+summary(seed_mass_model_ab)
+
+# Prepare fitted values for plotting
+abund_traits_ab <- abund_traits_ab %>%
+  mutate(logSeedMass = log10(seed_mass_g))
+
+fitted_vals_ab <- fitted(seed_mass_model_ab, newdata = abund_traits_ab, re_formula = NA, summary = TRUE)
+
+abund_traits_ab <- abund_traits_ab %>%
+  mutate(fit = fitted_vals_ab[, "Estimate"],
+         fit_lower = fitted_vals_ab[, "Q2.5"],
+         fit_upper = fitted_vals_ab[, "Q97.5"])
+
+# 5. Plot
+
+pdf("/Users/jm200/Library/CloudStorage/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Figure/Figure4_seedmass_ab_SpeciesRE.pdf",
+    width = 5, height = 4)
+
+Fig7e<-ggplot(abund_traits_ab, aes(x = logSeedMass, y = yi)) +
+  geom_point(color = "orange2", size = 2.5, alpha = 0.6) +
+  # geom_ribbon(aes(ymin = fit_lower, ymax = fit_upper), fill = "gray80", alpha = 0.4) +
+  # geom_line(aes(y = fit), color = "navy", size = 1) +
+  labs(x = "Log10 Seed mass (g)", y = "Effect size ( abundance)") +
+  my_theme
+
+dev.off()
+```
+
+```{r}
+# 1. Merge abundance data with categorical traits
+lifeform_ab <- left_join(abunpdat, traits_categorical_ab, 
+                         by = c("Species" = "scrubbed_species_binomial"))
+
+# Define growth forms for species with NA
+growth_forms <- c(
+  "Carya ovalis"         = "Tree",
+  "Castanea pumila"      = "Tree",
+  "Chrysolepis chrysophylla" = "Tree",
+  "Crataegus crus-galli" = "Shrub",   # sometimes small tree
+  "Ehretia anacua"       = "Tree",
+  "Fagus sylvatica"      = "Tree",
+  "Fraxinus caroliniana" = "Tree",
+  "Fraxinus velutina"    = "Tree",
+  "Gleditsia aquatica"   = "Tree",
+  "Gordonia lasianthus"  = "Tree",
+  "Halesia diptera"      = "Tree",
+  "Juniperus ashei"      = "Tree",
+  "Juniperus pinchotii"  = "Tree",
+  "Pinus remota"         = "Tree",
+  "Planera aquatica"     = "Tree",
+  "Prunus americana"     = "Tree",
+  "Prunus emarginata"    = "Tree",
+  "Quercus agrifolia"    = "Tree",
+  "Quercus grisea"       = "Tree",
+  "Quercus hypoleucoides"= "Tree",
+  "Quercus incana"       = "Tree",
+  "Quercus marilandica"  = "Tree",
+  "Quercus pagoda"       = "Tree",
+  "Quercus shumardii"    = "Tree",
+  "Quercus similis"      = "Tree",
+  "Quercus sinuata"      = "Tree",
+  "Sorbus americana"     = "Tree",
+  "Sorbus decora"        = "Tree",
+  "Torreya californica"  = "Tree",
+  "Vernicia fordii"      = "Tree"
+)
+
+# Replace NA values in whole plant growth form
+lifeform_ab$`whole plant growth form` <- ifelse(
+  is.na(lifeform_ab$`whole plant growth form`),
+  growth_forms[lifeform_ab$Species],
+  lifeform_ab$`whole plant growth form`
+)
+
+lifeform_ab_meta <- lifeform_ab %>%
+  dplyr::select(ID, Species, `whole plant growth form`, yi, vi, se)
+
+lifeform_ab_meta_clean <- lifeform_ab_meta %>%
+  rename(growth_form = `whole plant growth form`) %>%
+  mutate(
+    growth_form = str_to_title(growth_form),               # standardize capitalization
+    growth_form = ifelse(growth_form %in% c("Shrub*", "Shrub"), "Shrub", growth_form)  # combine Shrub* and Shrub
+  ) %>%
+  filter(
+    !is.na(growth_form),                                   # remove NAs
+    growth_form != "Alga",                                 # remove Alga
+    !grepl("Sclerophyll", growth_form)                     # remove Sclerophyll*
+  ) %>%
+  mutate(
+    growth_form = factor(growth_form)                      # convert back to factor
+  )
+
+# Check result
+
+unique(lifeform_ab_meta_clean$growth_form)
+species_in_matrix <- intersect(lifeform_ab_meta_clean$Species, rownames(A))
+lifeform_ab_meta_clean <- lifeform_ab_meta_clean %>%
+  filter(Species %in% species_in_matrix)
+
+# Reorder Species factor to match covariance matrix
+lifeform_ab_meta_clean$Species <- factor(
+  lifeform_ab_meta_clean$Species,
+  levels = species_in_matrix
+)
+
+# Reorder phylogenetic covariance matrix
+A <- A[species_in_matrix, species_in_matrix]
+
+
+# Fit phylogenetic meta-regression with growth form
+growthform_model_ab <- brm(
+  yi | se(se, sigma = TRUE) ~ (growth_form - 1) + (1|ID) + (1 | gr(Species, cov = A)),
+  data = lifeform_ab_meta_clean,
+  family = gaussian(),
+  data2 = list(A = A),
+  prior = c(
+    prior(normal(0, 1), class = "b"),          # fixed effects
+    prior(student_t(3, 0, 5), class = "sd"),   # random effects
+    prior(student_t(3, 0, 5), class = "sigma") # residual
+  ),
+  control = list(adapt_delta = 0.9999, max_treedepth = 15),
+  iter = 5000, cores = 4
+)
+```
+
+```{r}
+summary(growthform_model_ab)
+get_variables(growthform_model_ab)
+```
+
+```{r}
+# Variables
+get_variables(growthform_model_ab)
+
+# Posterior samples for growth forms
+post.samples_ab_form <- posterior_samples(
+  growthform_model_ab,
+  pars = c("b_growth_formHerb","b_growth_formShrub","b_growth_formTree")
+)
+
+# Posterior probabilities > 0
+mean(post.samples_ab_form$b_growth_formHerb > 0)
+mean(post.samples_ab_form$b_growth_formShrub > 0)
+mean(post.samples_ab_form$b_growth_formTree > 0)
+
+# ECDF for probabilities below 0
+smd.ecdf_ab_herb  <- ecdf(post.samples_ab_form$b_growth_formHerb)
+smd.ecdf_ab_shrub <- ecdf(post.samples_ab_form$b_growth_formShrub)
+smd.ecdf_ab_tree  <- ecdf(post.samples_ab_form$b_growth_formTree)
+
+smd.ecdf_ab_herb(0)
+smd.ecdf_ab_shrub(0)
+smd.ecdf_ab_tree(0)
+
+# Plot for growth form effects
+
+# Herb
+herb_ab <- spread_draws(growthform_model_ab, b_growth_formHerb) %>%
+  mutate(study = "Herb") %>%
+  dplyr::rename(Form = b_growth_formHerb)
+all_sum_ab_herb <- group_by(herb_ab, study) %>% mean_qi(Form)
+
+# Shrub
+shrub_ab <- spread_draws(growthform_model_ab, b_growth_formShrub) %>%
+  mutate(study = "Shrub") %>%
+  dplyr::rename(Form = b_growth_formShrub)
+all_sum_ab_shrub <- group_by(shrub_ab, study) %>% mean_qi(Form)
+
+# Tree
+tree_ab <- spread_draws(growthform_model_ab, b_growth_formTree) %>%
+  mutate(study = "Tree") %>%
+  dplyr::rename(Form = b_growth_formTree)
+all_sum_ab_tree <- group_by(tree_ab, study) %>% mean_qi(Form)
+
+# Combine
+all_ab_form <- bind_rows(herb_ab, shrub_ab, tree_ab)
+all_sum_ab_form <- bind_rows(all_sum_ab_herb, all_sum_ab_shrub, all_sum_ab_tree)
+
+# Plot
+Figure7c <- all_ab_form %>%
+  ggplot(aes(Form, study, fill = after_stat(x < 0))) +
+  labs(x = "Effect size (abundance)", y = '') +
+  xlim(-2.5, 2) +
+  geom_vline(xintercept = 0, linewidth = .25, lty = 2) +
+  stat_halfeye(.width = c(0.95, 0.95)) +
+  scale_fill_manual(values = c("#F0E442", "#999999")) +
+  geom_text(
+    size = 2.8,
+    data = mutate_if(all_sum_ab_form, is.numeric, round, 2),
+    aes(label = str_glue("{Form} [{.lower}, {.upper}]"), x = -2.3),
+    hjust = "inward"
+  ) +
+  theme(
+    panel.border     = element_rect(fill = NA),
+    text             = element_text(size = 10),
+    legend.position  = "none",
+    legend.title     = element_text(size = 8),
+    legend.text      = element_text(size = 8),
+    legend.background= element_blank(),
+    panel.background = element_rect(fill="transparent"),
+    axis.text.x      = element_text(size = 10, colour = "black"),
+    axis.text.y      = element_text(size = 10, colour = "black", hjust = 0.5, angle = 0)
+  )
+
+
+```
+
+
+```{r}
+# Arrange plots
+pdf("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Figure/Figure7.pdf", width = 8, height = 6)
+Figure7 <- (Figure7a + Figure7b) / (Figure7c  + Fig7e)+
+  plot_annotation(
+    tag_levels = 'a'  # automatically assigns 'a', 'b', 'c'
+  ) &
+  theme(
+    plot.tag = element_text(size = 14, face = "plain"),
+    plot.tag.position = c(0, 1.0)  # top-left corner
+  )
+
+Figure7
+dev.off()
+```
+
+# Population abundance 
+```{r}
+databuncp %>%
+  filter(Kingdom == "Plant")->databp
+species_list_ab<-databp$Species
+missing_pollination_ab <- check_missing_species(species_list_ab, pollination_data, "Pollination_syndrome")
+missing_fruit_mass_ab <- check_missing_species(species_list_ab, fruit_mass_data, "Fruit_dry_mass")
+missing_growth_form_ab <- check_missing_species(species_list_ab, growth_form_data, "Plant_growth_form")
+
+# Combine results
+missing_all_ab <- bind_rows(missing_pollination_ab, missing_fruit_mass_ab, missing_growth_form_ab)
+missing_all
+
+```
+
+```{r}
+seedmass<-left_join(databp,fruit_mass_data,by=c("Species"="SpeciesName"))
+na_per_column <- colSums(is.na(seedmass))
+na_per_column
+seedmass %>% 
+  dplyr::select(ID,Species,yi,vi,se,OrigValueStr) %>% 
+  na.omit()
+```
+
+
