@@ -1056,7 +1056,7 @@ databuncp$pred_upr <- fitted_abun[, "Q97.5"]
 
 ```{r}
 # Layout: 3 top trend panels (larger), 3 bottom funnel plots
-pdf("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Figure/Figure2.pdf", width = 9, height = 6)
+pdf("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Center-periphery-hypothesis/Figure/Figure22.pdf", width = 9, height = 6)
 layout_matrix <- matrix(c(1,2,3,
                           4,5,6), nrow=2, byrow=TRUE)
 layout(layout_matrix, heights=c(1,1))  # top row taller
@@ -1067,7 +1067,7 @@ datgencp <- datgencp[order(datgencp$Year), ]
 ylim_range <- range(c(datgencp$yi, datgencp$pred_lwr, datgencp$pred_upr))
 plot(datgencp$Year, datgencp$yi, 
      pch=19, col=adjustcolor("orange2", alpha.f=0.4),
-     xlab="Year", ylab="Genetic diversity effect size",
+     xlab="Year", ylab="Effect size (genetic diversity)",
      main="", xlim=c(min(datgencp$Year), max(datgencp$Year)), ylim=c(-5,5))
 lines(datgencp$Year, datgencp$pred, col="orange2", lwd=3)
 polygon(c(datgencp$Year, rev(datgencp$Year)),
@@ -1080,7 +1080,7 @@ databuncp <- databuncp[order(databuncp$Year), ]
 #ylim_range <- range(c(databuncp$yi, databuncp$pred_lwr, databuncp$pred_upr))
 plot(databuncp$Year, databuncp$yi, 
      pch=19, col=adjustcolor("orange2", alpha.f=0.4),
-     xlab="Year", ylab="Population abundance effect size",
+     xlab="Year", ylab="Effect size (abundance)",
      main="", xlim=c(min(databuncp$Year), max(databuncp$Year)), ylim=c(-2,2))
 # lines(databuncp$Year, databuncp$pred, col="orange2", lwd=3)
 # polygon(c(databuncp$Year, rev(databuncp$Year)),
@@ -1092,7 +1092,7 @@ datlambda <- datlambda[order(datlambda$Year), ]
 ylim_range <- range(c(datlambda$yi, datlambda$pred_lwr, datlambda$pred_upr))
 plot(datlambda$Year, datlambda$yi, 
      pch=19, col=adjustcolor("orange2", alpha.f=0.4),
-     xlab="Year", ylab="Population growth rate effect size",
+     xlab="Year", ylab="Effect size (population growth rate)",
      main="", xlim=c(min(datlambda$Year), max(datlambda$Year)), ylim=c(-5,5))
 # lines(dathlambda$Year, dathlambda$pred, col="orange2", lwd=3)
 # polygon(c(dathlambda$Year, rev(dathlambda$Year)),
@@ -1102,19 +1102,19 @@ mtext("c", side=3, line=0.5, at=min(datlambda$Year), cex=1.2, font=1)
 # Bottom row: funnel plots
 funnel(Lambdamodel_rm, yaxis="seinv", level=c(90,95,99),
        shade=c("white","gray55","gray75"), ylab="Precision (1/SE)",
-       xlab="Population growth rate", cex.lab=1.2, col="orange2",
+       xlab="Effect size (population growth rate)", cex.lab=1.2, col="orange2",
        back="white", digits=1, xlim=c(-4,4), ylim=c(0.01,75))
 mtext("d", side=3, line=0.5, at=-4, cex=1.2, font=1)
 box()
 
 funnel(genamodelpb, yaxis="seinv", level=c(90,95,99),
-       shade=c("white","gray55","gray75"), ylab="", xlab="Genetic diversity",
+       shade=c("white","gray55","gray75"), ylab="", xlab="Effect size (genetic diversity)",
        cex.lab=1.2, col=adjustcolor("orange2", alpha.f=0.4), back="white", digits=1, xlim=c(-4,4), ylim=c(0.01,75))
 mtext("e", side=3, line=0.5, at=-4, cex=1.2, font=1)
 box()
 
 funnel(abunmodelpb, yaxis="seinv", level=c(90,95,99),
-       shade=c("white","gray55","gray75"), ylab="", xlab="Population abundance",
+       shade=c("white","gray55","gray75"), ylab="", xlab="Effect size (abundance)",
        cex.lab=1.2, col=adjustcolor("orange2", alpha.f=0.4), back="white", digits=1, xlim=c(-4,4), ylim=c(0.01,75))
 mtext("f", side=3, line=0.5, at=-4, cex=1.2, font=1)
 box()
@@ -1334,6 +1334,10 @@ dev.off()
 
 ## Methods
 ```{r}
+table(databuncp$Kingdom, databuncp$Method)
+```
+
+```{r}
 Kingdomme.model <- brms::brm(
   yi|se(se, sigma = TRUE) ~ (Method-1) + (1|ID) + (1|Species),
   data = databuncp,
@@ -1349,6 +1353,7 @@ Kingdomme.model <- brms::brm(
 ```
 
 ```{r}
+
 summary(Kingdomme.model)
 ```
 
