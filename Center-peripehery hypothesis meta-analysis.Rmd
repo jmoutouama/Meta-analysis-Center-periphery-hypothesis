@@ -381,46 +381,62 @@ dev.off()
 ```
 
 ### Heterogeneity for population growth rate
+
 ```{r}
-# Function to calculate h (quantified heterogeneity in percent)
-bayes_h <- function(fit, group = c("ID", "Species", "residual")) {
-  library(posterior)
-  library(parameters)
+# Load required packages
+library(posterior)
+library(parameters)
+
+# Function to compute tau², I², and variance partitioning
+compute_heterogeneity <- function(fit, se_vector = NULL, group_names = c("ID", "Species", "residual")) {
   
   # Extract posterior draws
   post <- as_draws_df(fit)
   
-  # Variance components
-  tau2_ID <- if ("sd_ID__Intercept" %in% names(post)) post$`sd_ID__Intercept`^2 else 0
-  tau2_Species <- if ("sd_Species__Intercept" %in% names(post)) post$`sd_Species__Intercept`^2 else 0
-  sigma2 <- if ("sigma" %in% names(post)) post$sigma^2 else 0
+  # Extract variance components (replace names if your model uses different labels)
+  tau2_ID <- if("sd_ID__Intercept" %in% names(post)) post$`sd_ID__Intercept`^2 else 0
+  tau2_Species <- if("sd_Species__Intercept" %in% names(post)) post$`sd_Species__Intercept`^2 else 0
+  sigma2 <- if("sigma" %in% names(post)) post$sigma^2 else 0
   
-  # Total variance
-  V_total <- tau2_ID + tau2_Species + sigma2
+  # Total heterogeneity tau²
+  tau2_total <- tau2_ID + tau2_Species + sigma2
   
-  out <- list()
+  # Variance partitioning
+  h_list <- list()
+  if("ID" %in% group_names) h_list$ID <- 100 * tau2_ID / tau2_total
+  if("Species" %in% group_names) h_list$Species <- 100 * tau2_Species / tau2_total
+  if("residual" %in% group_names) h_list$residual <- 100 * sigma2 / tau2_total
   
-  if ("ID" %in% group) {
-    h_ID <- 100 * tau2_ID / V_total
-    out$ID <- describe_posterior(h_ID, centrality = "all", ci = 0.95)
+  # Compute I² if standard errors provided
+  I2 <- NULL
+  if(!is.null(se_vector)) {
+    mean_se2 <- mean(se_vector^2)
+    I2 <- 100 * tau2_total / (tau2_total + mean_se2)
   }
   
-  if ("Species" %in% group) {
-    h_Species <- 100 * tau2_Species / V_total
-    out$Species <- describe_posterior(h_Species, centrality = "all", ci = 0.95)
-  }
+  # Summarize posterior distributions
+  tau2_summary <- describe_posterior(tau2_total, centrality = "all", ci = 0.95)
+  I2_summary <- if(!is.null(I2)) describe_posterior(I2, centrality = "all", ci = 0.95) else NULL
+  h_summary <- lapply(h_list, function(x) describe_posterior(x, centrality = "all", ci = 0.95))
   
-  if ("residual" %in% group) {
-    h_residual <- 100 * sigma2 / V_total
-    out$residual <- describe_posterior(h_residual, centrality = "all", ci = 0.95)
-  }
-  
-  return(out)
+  return(list(
+    tau2 = tau2_summary,
+    I2 = I2_summary,
+    variance_partitioning = h_summary
+  ))
 }
 
-# Example usage
-bayes_h(Lambdamodel)
+```
 
+```{r}
+Lambdamodel_i <- compute_heterogeneity(Lambdamodel, se_vector = datlambda$se)
+
+# Access results
+Lambdamodel_i$tau2
+Lambdamodel_i$I2
+Lambdamodel_i$variance_partitioning$ID
+Lambdamodel_i$variance_partitioning$Species
+Lambdamodel_i$variance_partitioning$residual
 
 ```
 
@@ -481,8 +497,12 @@ genamodel %>% Ftable(percent = T)
 # Heterogeinity for genetic diversity 
 
 ```{r}
-bayes_h(genamodel)
-
+genamodel_i <- compute_heterogeneity(genamodel, se_vector = datgencp$se)
+genamodel_i$tau2
+genamodel_i$I2
+genamodel_i$variance_partitioning$ID
+genamodel_i$variance_partitioning$Species
+genamodel_i$variance_partitioning$residual
 ```
 
 ### empirical cumulative distribution function
@@ -634,8 +654,12 @@ abunmodel %>% Ftable(percent = T)
 ### Heterogeinity for abundance data
 
 ```{r}
-bayes_I2(abunmodel, group = c("ID", "Species", "total"))
-bayes_h(abunmodel)
+abunmodel_i <- compute_heterogeneity(abunmodel, se_vector = datgencp$se)
+abunmodel_i$tau2
+abunmodel_i$I2
+abunmodel_i$variance_partitioning$ID
+abunmodel_i$variance_partitioning$Species
+abunmodel_i$variance_partitioning$residual
 ```
 
 
@@ -1425,7 +1449,7 @@ pdf("/Users/jacobmoutouama/Dropbox/Moutouama Lab/Manuscripts/Meta-analysis-Cente
   scale_fill_manual(values = c("#F0E442", "#999999"))+
   # Add text labels
   geom_text(size = 2.8,
-    data = mutate_if(out_all_sum_method, is.numeric, round, 2),
+    data = mutate_if(out_all_sum_method, is.numeric, round, 3),
     aes(label = str_glue("{Method} [{.lower}, {.upper}]"), x =-0.85),
     hjust = "inward"
   ) +
