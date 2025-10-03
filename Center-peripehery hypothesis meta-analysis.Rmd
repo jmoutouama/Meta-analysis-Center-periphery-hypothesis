@@ -258,7 +258,7 @@ priors_lb <- c(
   prior(cauchy(0, 0.5), class = "sd")
 )
 
-# 6. Fit brms model with phylogeny
+# Fit brms model with phylogeny
 Lambdamodel <- brm(
   yi | se(se,sigma=TRUE) ~ 1 + (1|ID) + (1|Species),
   data = datlambda,
@@ -381,6 +381,29 @@ dev.off()
 ```
 
 ### Heterogeneity for population growth rate
+
+```{r}
+# Extract VarCorr object
+vc <- VarCorr(Lambdamodel)
+# Get posterior mean of each variance component
+sigma_ID    <- as.numeric(vc$ID$sd)^2        # study-level
+sigma_Species <- as.numeric(vc$Species$sd)^2 # species-level
+sigma_resid <- as.numeric(vc$residual__sd)^2 # residual
+
+# Total variance
+sigma_total <- sigma_ID + sigma_Species + sigma_resid
+
+# Compute % contribution (I²-like)
+I2_ID      <- 100 * sigma_ID / sigma_total
+I2_Species <- 100 * sigma_Species / sigma_total
+I2_resid   <- 100 * sigma_resid / sigma_total
+
+# Display results
+data.frame(
+  Component = c("ID", "Species", "Residual"),
+  PercentVariance = c(I2_ID, I2_Species, I2_resid)
+)
+```
 
 ```{r}
 # Load required packages
